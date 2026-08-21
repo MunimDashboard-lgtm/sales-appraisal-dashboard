@@ -241,6 +241,22 @@
     cursor:pointer; font-size:11.5px; padding:0;
   }
   #app-root{ display:none; }
+
+  /* ---------- Manage Access panel ---------- */
+  .grant-form{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:4px; }
+  .grant-form input[type="email"]{
+    font-family:inherit; font-size:12.5px; padding:8px 10px; border-radius:8px; border:1px solid var(--border);
+    background:var(--surface-1); color:var(--text-primary); min-width:240px;
+  }
+  .notify-check{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-secondary); }
+  .access-error{
+    display:none; background:rgba(208,59,59,0.08); border:1px solid var(--critical); color:var(--critical);
+    border-radius:8px; padding:10px 14px; font-size:12.5px; margin:10px 0; line-height:1.5;
+  }
+  .access-warn{
+    background:rgba(250,178,25,0.10); border:1px solid var(--warning); color:var(--text-primary);
+    border-radius:8px; padding:9px 13px; font-size:12px; margin-bottom:12px; line-height:1.5;
+  }
 </style>
 </head>
 <body class="viz-root">
@@ -284,7 +300,7 @@
   </div>
 
   <div class="assumption-banner">
-    <b>How to read this:</b> Four KRAs are calculated automatically from the sales sheet — <b>Sales Achievement (60%)</b>, <b>Conversion &amp; Productivity (15%)</b>, <b>Team Expansion (10%)</b> and <b>Attrition &amp; Retention (5%)</b>. The remaining two — <b>Leadership (5%)</b> and <b>Reporting Discipline (5%)</b> — are qualitative. <b>Manager KRA Master Sheet:</b> Leadership and Reporting Discipline scores (and optional sub-metrics — conversion-funnel %, headcount, avoidable attrition) are pulled automatically from a second Google Sheet, the "Manager KRA Master Sheet" — fill scores in there and they show up here pre-filled (still editable per session). That same sheet is where you add managers from other departments: any manager/month row you add there appears as its own card here, scored on Leadership/Reporting/Attrition immediately and on Sales/Productivity/Expansion once you give them Target &amp; Achieved figures via "✏️ Edit raw data" (until then those three KRAs show "N/A" and the score is reweighted over what does apply). <b>Live data:</b> this page pulls Target/Achieved/BDE/Cost from the Sales Data Sheet and Leadership/Reporting/sub-metrics from the Master Sheet each time it's opened, using your own signed-in Google account — <b>both sheets need to be shared with your account as a Viewer</b> (any Gmail, Workspace or other Google account) for this to work; that sharing is also the actual access control for who can see this dashboard's data at all. Click "🔄 Refresh from Sheet" any time to re-pull either. <b>New months are automatic:</b> add a new tab to the Sales Data Sheet named like the existing ones (e.g. "Nov'26") and it's picked up on the next load or Refresh — no setup needed. Only tabs from July 2026 onward count as dashboard months (earlier tabs in that sheet predate this appraisal and are ignored). The Master Sheet works the same way already — just add rows with that month's label. <b>Everything here is also editable:</b> open "✏️ Edit raw data" on any manager card to correct a figure by hand — the % achieved, ROI, KRA scores, charts and totals all recalculate instantly. <b>Note:</b> hand-edits and any Leadership/Reporting score you change here (overriding the Master Sheet) only last for this browser tab/session — a "🔄 Refresh" or closing the tab discards them, so make lasting changes in the Master Sheet itself. Use "↺ Reset all data" to discard edits and go back to the last fetched (or saved) figures.
+    <b>How to read this:</b> Four KRAs are calculated automatically from the sales sheet — <b>Sales Achievement (60%)</b>, <b>Conversion &amp; Productivity (15%)</b>, <b>Team Expansion (10%)</b> and <b>Attrition &amp; Retention (5%)</b>. The remaining two — <b>Leadership (5%)</b> and <b>Reporting Discipline (5%)</b> — are qualitative. <b>Manager KRA Master Sheet:</b> Leadership and Reporting Discipline scores (and optional sub-metrics — conversion-funnel %, headcount, avoidable attrition) are pulled automatically from a second Google Sheet, the "Manager KRA Master Sheet" — fill scores in there and they show up here pre-filled (still editable per session). That same sheet is where you add managers from other departments: any manager/month row you add there appears as its own card here, scored on Leadership/Reporting/Attrition immediately and on Sales/Productivity/Expansion once you give them Target &amp; Achieved figures via "✏️ Edit raw data" (until then those three KRAs show "N/A" and the score is reweighted over what does apply). <b>Live data:</b> this page pulls Target/Achieved/BDE/Cost from the Sales Data Sheet and Leadership/Reporting/sub-metrics from the Master Sheet each time it's opened, using your own signed-in Google account — <b>both sheets need to be shared with your account as a Viewer</b> (any Gmail, Workspace or other Google account) for this to work; that sharing is also the actual access control for who can see this dashboard's data at all. Click "🔄 Refresh from Sheet" any time to re-pull either. <b>New months are automatic:</b> add a new tab to the Sales Data Sheet named like the existing ones (e.g. "Nov'26") and it's picked up on the next load or Refresh — no setup needed. Only tabs from July 2026 onward count as dashboard months (earlier tabs in that sheet predate this appraisal and are ignored). The Master Sheet works the same way already — just add rows with that month's label. <b>Everything here is also editable:</b> open "✏️ Edit raw data" on any manager card to correct a figure by hand — the % achieved, ROI, KRA scores, charts and totals all recalculate instantly. <b>Note:</b> hand-edits and any Leadership/Reporting score you change here (overriding the Master Sheet) only last for this browser tab/session — a "🔄 Refresh" or closing the tab discards them, so make lasting changes in the Master Sheet itself. Use "↺ Reset all data" to discard edits and go back to the last fetched (or saved) figures. <b>Managing who has access:</b> Amit's account sees an extra "⚙️ Manage Access" tab here to grant or revoke other people's Viewer access to both Sheets directly — it can only ever hand out Viewer permission, never edit rights.
   </div>
 
   <nav class="tabs" id="month-tabs"></nav>
@@ -347,6 +363,32 @@
     </div>
   </section>
 
+  <section id="access-view" hidden>
+    <div class="card compare-card">
+      <h3>Manage dashboard access</h3>
+      <div class="card-sub">Grants or revokes real Viewer permission on both Sheets via the Google Drive API — nothing here can ever grant edit rights, to anyone, including you. Your own account needs Editor-with-sharing rights (not just Viewer) on both Sheets for these buttons to work.</div>
+      <div class="access-error" id="access-error"></div>
+      <div class="grant-form">
+        <input type="email" id="grant-email" placeholder="name@example.com">
+        <label class="notify-check"><input type="checkbox" id="grant-notify" checked> Email them</label>
+        <button class="icon-btn" id="grant-btn" onclick="onGrantAccess()">+ Grant Viewer access to both Sheets</button>
+      </div>
+      <div class="gate-note" style="margin-top:12px;">While this app is in Google's "Testing" publishing status, a person also needs to be added as an OAuth <b>test user</b> before they can sign in at all — that step is Google-account-level, not sheet-level, so it can't be done from here. <a href="https://console.cloud.google.com/auth/audience?project=munim-sales-dashboard" target="_blank" rel="noopener">Open the test-user list →</a></div>
+    </div>
+
+    <div class="card compare-card">
+      <h3>Sales Data Sheet — current access</h3>
+      <div class="card-sub">FST SALES SUMMARY 25-26 Munim</div>
+      <div id="access-list-sheet"></div>
+    </div>
+
+    <div class="card compare-card">
+      <h3>Manager KRA Master Sheet — current access</h3>
+      <div class="card-sub">Leadership / Reporting / sub-metrics + other-department managers</div>
+      <div id="access-list-master"></div>
+    </div>
+  </section>
+
   <section>
     <div class="section-title">KRA Weightage Framework (reference)</div>
     <div class="section-sub">From the "Sales Manager KRA &amp; Weightage Structure" document — solid bars are auto-calculated in this dashboard, hatched bars need manual HR input</div>
@@ -357,7 +399,7 @@
 
   <footer class="page-footer">
     <b>Methodology.</b> Sales Achievement score = % of target achieved (capped at 100). Productivity score = the manager's Average-Revenue-per-BDE relative to the best performer that month. Team Expansion score = whether BDE headcount held or grew vs. the prior month in scope (100 if maintained/grew). Attrition score = 100 − attrition % (from the Sales Data Sheet if tracked there, else from the Master Sheet's Avoidable Attrition column, else assumed 0). Leadership and Reporting Discipline come from the Manager KRA Master Sheet (1–5 scale), editable per session from any manager card. A manager with no Target/Achieved on file yet (e.g. a newly added other-department manager) shows Sales/Productivity/Expansion as N/A and their Final Score is reweighted over Attrition + Leadership + Reporting only, until Target/Achieved figures are added.<br>
-    <b>Access, live fetch, the Master Sheet &amp; known data gaps.</b> This dashboard is gated behind Google sign-in (see <code>#auth-gate</code> / <code>initGoogleAuth</code> near the top of the script) — on sign-in, the page requests an OAuth access token for the signed-in Google account (any Gmail, Workspace or other Google account) and probes the Sales Data Sheet with it; the actual access control is whatever Viewer permissions that account has on the two Sheets in Google's own Share dialog, not anything hardcoded here. Once past the gate, the page reads the Sales Data Sheet's own tab list via the authenticated Sheets API metadata endpoint — see <code>discoverSheetTabs()</code> near <code>SHEET_ID</code> — to rebuild <code>MONTH_TABS</code> automatically from whatever month tabs actually exist there (named like "Sep'26"; only July 2026 onward counts — see <code>MONTH_START_CUTOFF</code>), then pulls each month's data plus the Manager KRA Master Sheet — see <code>MASTER_SHEET_ID</code>/<code>MASTER_GID</code> — via authenticated <code>values.get</code> calls, and re-derives every field through the same formulas as the manual edit boxes. The Sales Data Sheet's column layout differs slightly month to month (e.g. July adds a "DRR" column, August adds "Attrition %" and "Avg. per subscription cost", some months split into 1st/2nd fortnight tables) — the parser matches columns by name and sums fortnight tables automatically, but a month with a genuinely new layout may need a quick check. The Master Sheet is matched by its "Month" column text against each discovered tab's label, so a month's tab must exist in the Sales Data Sheet before its Master Sheet rows are picked up. Conversion-funnel metrics (lead→demo→payment) and headcount/attrition sub-metrics from the KRA document live in the Master Sheet and show as reference figures on each manager's card — they're not yet folded into the weighted score beyond feeding Attrition, since the funnel stages don't map to a single 0–100 KRA score on their own; extend <code>computeAllScores</code> if you want to add that. If a fetch fails after sign-in (e.g. the Master Sheet hasn't been shared with this account yet, or a transient API error), the dashboard falls back to the last known data and figures it successfully loaded.<br>
+    <b>Access, live fetch, the Master Sheet &amp; known data gaps.</b> This dashboard is gated behind Google sign-in (see <code>#auth-gate</code> / <code>initGoogleAuth</code> near the top of the script) — on sign-in, the page requests an OAuth access token for the signed-in Google account (any Gmail, Workspace or other Google account) and probes the Sales Data Sheet with it; the actual access control is whatever Viewer permissions that account has on the two Sheets in Google's own Share dialog, not anything hardcoded here. Once past the gate, the page reads the Sales Data Sheet's own tab list via the authenticated Sheets API metadata endpoint — see <code>discoverSheetTabs()</code> near <code>SHEET_ID</code> — to rebuild <code>MONTH_TABS</code> automatically from whatever month tabs actually exist there (named like "Sep'26"; only July 2026 onward counts — see <code>MONTH_START_CUTOFF</code>), then pulls each month's data plus the Manager KRA Master Sheet — see <code>MASTER_SHEET_ID</code>/<code>MASTER_GID</code> — via authenticated <code>values.get</code> calls, and re-derives every field through the same formulas as the manual edit boxes. The Sales Data Sheet's column layout differs slightly month to month (e.g. July adds a "DRR" column, August adds "Attrition %" and "Avg. per subscription cost", some months split into 1st/2nd fortnight tables) — the parser matches columns by name and sums fortnight tables automatically, but a month with a genuinely new layout may need a quick check. The Master Sheet is matched by its "Month" column text against each discovered tab's label, so a month's tab must exist in the Sales Data Sheet before its Master Sheet rows are picked up. Conversion-funnel metrics (lead→demo→payment) and headcount/attrition sub-metrics from the KRA document live in the Master Sheet and show as reference figures on each manager's card — they're not yet folded into the weighted score beyond feeding Attrition, since the funnel stages don't map to a single 0–100 KRA score on their own; extend <code>computeAllScores</code> if you want to add that. If a fetch fails after sign-in (e.g. the Master Sheet hasn't been shared with this account yet, or a transient API error), the dashboard falls back to the last known data and figures it successfully loaded. <b>Manage Access tab:</b> gated to <code>ADMIN_EMAILS</code>, it calls the Drive API's <code>permissions</code> resource (see <code>listSheetPermissions</code>/<code>grantViewerAccess</code>/<code>revokeSheetPermission</code>) using the <code>drive.metadata</code> scope, which manages sharing metadata only — it has no access to file content, so it cannot be used, by anyone, to read or write the Sheets' actual data through this dashboard; that still only ever happens through <code>spreadsheets.readonly</code>. Adding someone here only covers Sheet-level Viewer access — while the OAuth app is in "Testing" status, each new person also needs a one-time manual add to the test-user list in Google Cloud Console before they can sign in at all.<br>
     Built for internal appraisal use at Identixweb / Munim — for Amit Choudhary.
   </footer>
 </div>
@@ -426,7 +468,16 @@ const ORIGINAL_MONTHS = JSON.parse(JSON.stringify(MONTHS));
 // been given in Google Sheets' own Share dialog. This client ID only needs to exist in the
 // Google Cloud Console; the token flow below never touches a client secret.
 const OAUTH_CLIENT_ID = '168275377096-mk816j9t47l2ci962qf5ov93c5lru9sd.apps.googleusercontent.com';
-const OAUTH_SCOPE = 'https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile';
+// drive.metadata is METADATA-ONLY (sharing/permissions) — it does not grant read or write
+// access to any file's actual content, so it can't be used to edit the Sheets' data even in
+// principle. Content itself is still read exclusively through spreadsheets.readonly below.
+const OAUTH_SCOPE = 'https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/drive.metadata https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile';
+
+// Only signed-in accounts in this list see the "Manage Access" tab and can grant/revoke other
+// people's Viewer permission on the two Sheets from inside the dashboard. Everyone else only
+// ever gets read-only dashboard access no matter what Drive role they hold on the Sheets.
+const ADMIN_EMAILS = ['amit.choudhary@themunim.com'];
+function isAdmin(){ return !!currentUser && ADMIN_EMAILS.includes((currentUser.email || '').toLowerCase()); }
 
 let tokenClient = null;
 let accessToken = null;
@@ -487,16 +538,54 @@ function requestTokenSilently(){
 // Every authenticated Sheets API call goes through here so 401 (expired token) gets one
 // silent retry, and 403 (signed in, but this account has no Viewer access to the Sheet) is
 // surfaced distinctly from a generic network/HTTP failure.
-async function apiFetch(url, _retried){
+async function apiFetch(url, opts){
+  opts = opts || {};
   if(!accessToken) throw { code: 401, message: 'Not signed in' };
-  const res = await fetch(url, { headers: { Authorization: 'Bearer ' + accessToken } });
-  if(res.status === 401 && !_retried){
-    try{ await requestTokenSilently(); return apiFetch(url, true); }
+  const headers = { Authorization: 'Bearer ' + accessToken };
+  if(opts.body !== undefined) headers['Content-Type'] = 'application/json';
+  const res = await fetch(url, {
+    method: opts.method || 'GET',
+    headers,
+    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined
+  });
+  if(res.status === 401 && !opts._retried){
+    try{ await requestTokenSilently(); return apiFetch(url, Object.assign({}, opts, { _retried: true })); }
     catch(e){ throw { code: 401, message: 'Session expired — please sign in again.' }; }
   }
-  if(res.status === 403) throw { code: 403, message: 'This account does not have access to this sheet.' };
-  if(!res.ok) throw { code: res.status, message: 'HTTP ' + res.status };
+  if(res.status === 403) throw { code: 403, message: 'This account does not have permission for this request.' };
+  if(!res.ok){
+    let detail = '';
+    try{ const j = await res.json(); if(j && j.error && j.error.message) detail = ' — ' + j.error.message; } catch(e){}
+    throw { code: res.status, message: 'HTTP ' + res.status + detail };
+  }
+  if(res.status === 204) return null; // DELETE responses have no body
   return res.json();
+}
+
+// ---------- MANAGE ACCESS (admin-only: grant/revoke real Viewer permission via Drive) ----------
+// These call the Drive API's permissions resource directly on the two Sheets' file IDs (a
+// Sheet's fileId is the same as its spreadsheetId). They only ever request role:'reader'
+// (Viewer) — there is no code path here, or anywhere else in this file, that grants edit
+// rights to anyone, including the admin, through the dashboard. Requires drive.metadata scope
+// (see OAUTH_SCOPE) and requires the signed-in admin's own account to already hold Editor (or
+// better) access with sharing rights on both Sheets — Viewer alone isn't enough to manage
+// other people's permissions, same as in Google Sheets' own Share dialog.
+async function listSheetPermissions(fileId){
+  const data = await apiFetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions?fields=permissions(id,emailAddress,role,type,displayName)`);
+  return (data && data.permissions) || [];
+}
+async function grantViewerAccess(fileId, email, notify){
+  return apiFetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions?sendNotificationEmail=${notify ? 'true' : 'false'}`, {
+    method: 'POST',
+    body: { role: 'reader', type: 'user', emailAddress: email }
+  });
+}
+async function revokeSheetPermission(fileId, permissionId){
+  return apiFetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions/${permissionId}`, { method: 'DELETE' });
+}
+function describeAccessError(err, action){
+  if(err && err.code === 403) return `This account doesn't have permission to ${action} one or both Sheets. Managing sharing needs Editor access with sharing rights (not just Viewer) on both the Sales Data Sheet and the Master Sheet — ask whoever owns them to upgrade your role, or manage sharing directly in each Sheet's own Share dialog instead.`;
+  return `Could not ${action} the Sheets right now (${err && err.message ? err.message : 'unknown error'}). Try again in a moment.`;
 }
 async function fetchUserInfo(){
   const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: 'Bearer ' + accessToken } });
@@ -1459,6 +1548,91 @@ function wireTooltips(selector){
   });
 }
 
+function showAccessError(msg){
+  const el = document.getElementById('access-error');
+  if(!el) return;
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function hideAccessError(){
+  const el = document.getElementById('access-error');
+  if(el) el.style.display = 'none';
+}
+
+function renderAccessRows(containerId, fileId, permissions){
+  const el = document.getElementById(containerId);
+  const linkOpen = permissions.some(p => p.type === 'anyone');
+  const userPerms = permissions.filter(p => p.type === 'user');
+  const linkBanner = linkOpen
+    ? `<div class="access-warn">⚠️ "Anyone with the link" is still turned on for this Sheet — anyone who has the link can view it regardless of the list below. Turn that off in the Sheet's Share dialog once everyone who needs access is on this list and has confirmed they can sign in.</div>`
+    : '';
+  if(!userPerms.length){
+    el.innerHTML = linkBanner + '<div style="color:var(--text-muted);font-size:12.5px;">No individual people have been granted access yet.</div>';
+    return;
+  }
+  const rows = userPerms.map(p => {
+    const who = p.displayName ? `${p.displayName} <span style="color:var(--text-muted);font-weight:400;">${p.emailAddress || ''}</span>` : (p.emailAddress || '(unknown)');
+    const canRemove = p.role !== 'owner';
+    return `<tr>
+      <td class="name-cell">${who}</td>
+      <td style="text-transform:capitalize;">${p.role}</td>
+      <td>${canRemove ? `<button class="reset-link" onclick="onRevokeAccess('${fileId}','${p.id}')">Remove</button>` : '<span style="color:var(--text-muted);font-size:11px;">owner</span>'}</td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = linkBanner + `<table class="data-table"><thead><tr><th>Person</th><th>Role</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+async function renderAccessView(){
+  hideAccessError();
+  document.getElementById('access-list-sheet').innerHTML = '<div style="color:var(--text-muted);font-size:12.5px;">Loading…</div>';
+  document.getElementById('access-list-master').innerHTML = '<div style="color:var(--text-muted);font-size:12.5px;">Loading…</div>';
+  try{
+    const [sheetPerms, masterPerms] = await Promise.all([
+      listSheetPermissions(SHEET_ID),
+      listSheetPermissions(MASTER_SHEET_ID)
+    ]);
+    renderAccessRows('access-list-sheet', SHEET_ID, sheetPerms);
+    renderAccessRows('access-list-master', MASTER_SHEET_ID, masterPerms);
+  } catch(err){
+    console.warn('renderAccessView failed', err);
+    showAccessError(describeAccessError(err, 'load the current access list for'));
+    document.getElementById('access-list-sheet').innerHTML = '';
+    document.getElementById('access-list-master').innerHTML = '';
+  }
+}
+
+async function onGrantAccess(){
+  const input = document.getElementById('grant-email');
+  const email = input.value.trim();
+  hideAccessError();
+  if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ showAccessError('Enter a valid email address first.'); return; }
+  const notify = document.getElementById('grant-notify').checked;
+  const btn = document.getElementById('grant-btn');
+  btn.disabled = true;
+  try{
+    await Promise.all([
+      grantViewerAccess(SHEET_ID, email, notify),
+      grantViewerAccess(MASTER_SHEET_ID, email, notify)
+    ]);
+    input.value = '';
+    await renderAccessView();
+  } catch(err){
+    showAccessError(describeAccessError(err, 'grant access on'));
+  } finally {
+    btn.disabled = false;
+  }
+}
+async function onRevokeAccess(fileId, permissionId){
+  if(!confirm('Remove this person\'s Viewer access to this Sheet? If you remove them from both Sheets, they will no longer be able to see any data on this dashboard (they can still sign in, but every fetch will fail).')) return;
+  hideAccessError();
+  try{
+    await revokeSheetPermission(fileId, permissionId);
+    await renderAccessView();
+  } catch(err){
+    showAccessError(describeAccessError(err, 'remove access on'));
+  }
+}
+
 // ---------- NAV ----------
 document.getElementById('month-tabs').addEventListener('click', e => {
   const btn = e.target.closest('button');
@@ -1469,11 +1643,19 @@ document.getElementById('month-tabs').addEventListener('click', e => {
     currentView = 'compare';
     document.getElementById('month-view').hidden = true;
     document.getElementById('compare-view').hidden = false;
+    document.getElementById('access-view').hidden = true;
     renderCompareView();
+  } else if(btn.dataset.view === 'access'){
+    currentView = 'access';
+    document.getElementById('month-view').hidden = true;
+    document.getElementById('compare-view').hidden = true;
+    document.getElementById('access-view').hidden = false;
+    renderAccessView();
   } else {
     currentView = 'month';
     document.getElementById('month-view').hidden = false;
     document.getElementById('compare-view').hidden = true;
+    document.getElementById('access-view').hidden = true;
     renderMonthView(btn.dataset.month);
   }
 });
@@ -1484,7 +1666,8 @@ function toggleTheme(){
   body.setAttribute('data-theme', isDark ? 'light' : 'dark');
   document.getElementById('theme-toggle').textContent = isDark ? '🌙 Dark mode' : '☀️ Light mode';
   if(currentView === 'month') renderMonthView(currentMonth);
-  else renderCompareView();
+  else if(currentView === 'compare') renderCompareView();
+  else if(currentView === 'access') renderAccessView();
 }
 
 function renderMonthTabs(){
@@ -1493,7 +1676,9 @@ function renderMonthTabs(){
   if(!existing.has(currentMonth)) currentMonth = MONTH_TABS[0] ? MONTH_TABS[0].key : currentMonth;
   nav.innerHTML = MONTH_TABS.map(t =>
     `<button data-month="${t.key}" class="${currentView==='month' && currentMonth===t.key ? 'active':''}">${t.label}</button>`
-  ).join('') + (MONTH_TABS.length > 1 ? `<button data-view="compare" class="${currentView==='compare'?'active':''}">Comparison</button>` : '');
+  ).join('')
+    + (MONTH_TABS.length > 1 ? `<button data-view="compare" class="${currentView==='compare'?'active':''}">Comparison</button>` : '')
+    + (isAdmin() ? `<button data-view="access" class="${currentView==='access'?'active':''}">⚙️ Manage Access</button>` : '');
 }
 
 // ---------- INIT ----------
