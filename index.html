@@ -175,6 +175,12 @@
   .final-score-row .fs-note{ font-size:10.5px; color:var(--text-muted); margin-top:2px; }
 
   .compare-card{ margin-bottom:24px; }
+  .range-picker{ display:flex; gap:14px; align-items:center; margin:2px 0 16px; flex-wrap:wrap; }
+  .range-picker label{ display:flex; align-items:center; gap:7px; font-size:12px; color:var(--text-secondary); font-weight:600; }
+  .range-picker select{
+    font-family:inherit; font-size:12.5px; padding:6px 10px; border-radius:8px; border:1px solid var(--border);
+    background:var(--surface-1); color:var(--text-primary);
+  }
   .trend-chart{ display:flex; align-items:flex-end; gap:26px; height:220px; padding:10px 6px 0; }
   .trend-group{ display:flex; flex-direction:column; align-items:center; flex:1; height:100%; justify-content:flex-end; }
   .trend-bars{ display:flex; gap:6px; align-items:flex-end; height:180px; }
@@ -230,7 +236,7 @@
   </div>
 
   <div class="assumption-banner">
-    <b>How to read this:</b> Four KRAs are calculated automatically from the sales sheet — <b>Sales Achievement (60%)</b>, <b>Conversion &amp; Productivity (15%)</b>, <b>Team Expansion (10%)</b> and <b>Attrition &amp; Retention (5%)</b>. The remaining two — <b>Leadership (5%)</b> and <b>Reporting Discipline (5%)</b> — are qualitative. <b>Manager KRA Master Sheet:</b> Leadership and Reporting Discipline scores (and optional sub-metrics — conversion-funnel %, headcount, avoidable attrition) are pulled automatically from a second Google Sheet, the "Manager KRA Master Sheet" — fill scores in there and they show up here pre-filled (still editable per session). That same sheet is where you add managers from other departments: any manager/month row you add there appears as its own card here, scored on Leadership/Reporting/Attrition immediately and on Sales/Productivity/Expansion once you give them Target &amp; Achieved figures via "✏️ Edit raw data" (until then those three KRAs show "N/A" and the score is reweighted over what does apply). <b>Live data:</b> this page pulls Target/Achieved/BDE/Cost from the Sales Data Sheet and Leadership/Reporting/sub-metrics from the Master Sheet each time it's opened — <b>both sheets need "Anyone with the link" (Viewer) access turned on</b> for this to work from a browser with no server in between. Click "🔄 Refresh from Sheet" any time to re-pull either. Adding a whole new month tab (e.g. September) to the Sales Data Sheet still needs its tab ID registered once — ask me, or add it yourself, see the code comment near <code>MONTH_TABS</code>; the Master Sheet needs no such step, just add rows with that month's label. <b>Everything here is also editable:</b> open "✏️ Edit raw data" on any manager card to correct a figure by hand — the % achieved, ROI, KRA scores, charts and totals all recalculate instantly. <b>Note:</b> hand-edits and any Leadership/Reporting score you change here (overriding the Master Sheet) only last for this browser tab/session — a "🔄 Refresh" or closing the tab discards them, so make lasting changes in the Master Sheet itself. Use "↺ Reset all data" to discard edits and go back to the last fetched (or saved) figures.
+    <b>How to read this:</b> Four KRAs are calculated automatically from the sales sheet — <b>Sales Achievement (60%)</b>, <b>Conversion &amp; Productivity (15%)</b>, <b>Team Expansion (10%)</b> and <b>Attrition &amp; Retention (5%)</b>. The remaining two — <b>Leadership (5%)</b> and <b>Reporting Discipline (5%)</b> — are qualitative. <b>Manager KRA Master Sheet:</b> Leadership and Reporting Discipline scores (and optional sub-metrics — conversion-funnel %, headcount, avoidable attrition) are pulled automatically from a second Google Sheet, the "Manager KRA Master Sheet" — fill scores in there and they show up here pre-filled (still editable per session). That same sheet is where you add managers from other departments: any manager/month row you add there appears as its own card here, scored on Leadership/Reporting/Attrition immediately and on Sales/Productivity/Expansion once you give them Target &amp; Achieved figures via "✏️ Edit raw data" (until then those three KRAs show "N/A" and the score is reweighted over what does apply). <b>Live data:</b> this page pulls Target/Achieved/BDE/Cost from the Sales Data Sheet and Leadership/Reporting/sub-metrics from the Master Sheet each time it's opened — <b>both sheets need "Anyone with the link" (Viewer) access turned on</b> for this to work from a browser with no server in between. Click "🔄 Refresh from Sheet" any time to re-pull either. <b>New months are automatic:</b> add a new tab to the Sales Data Sheet named like the existing ones (e.g. "Nov'26") and it's picked up on the next load or Refresh — no setup needed. Only tabs from July 2026 onward count as dashboard months (earlier tabs in that sheet predate this appraisal and are ignored). The Master Sheet works the same way already — just add rows with that month's label. <b>Everything here is also editable:</b> open "✏️ Edit raw data" on any manager card to correct a figure by hand — the % achieved, ROI, KRA scores, charts and totals all recalculate instantly. <b>Note:</b> hand-edits and any Leadership/Reporting score you change here (overriding the Master Sheet) only last for this browser tab/session — a "🔄 Refresh" or closing the tab discards them, so make lasting changes in the Master Sheet itself. Use "↺ Reset all data" to discard edits and go back to the last fetched (or saved) figures.
   </div>
 
   <nav class="tabs" id="month-tabs"></nav>
@@ -275,6 +281,17 @@
       <h3>Manager-wise data — both months</h3>
       <div id="compare-table-wrap"></div>
     </div>
+
+    <div class="card">
+      <h3>Average Appraisal Score by Manager</h3>
+      <div class="card-sub" id="avg-score-sub">Pick a custom month range for appraisal — the average is each manager's overall weighted Final Score (the same one shown on their card) across the selected months.</div>
+      <div class="range-picker">
+        <label>From <select id="range-from" onchange="onRangeChange()"></select></label>
+        <label>To <select id="range-to" onchange="onRangeChange()"></select></label>
+      </div>
+      <div id="avg-score-chart"></div>
+      <div id="avg-score-table-wrap"></div>
+    </div>
   </section>
 
   <section>
@@ -287,7 +304,7 @@
 
   <footer class="page-footer">
     <b>Methodology.</b> Sales Achievement score = % of target achieved (capped at 100). Productivity score = the manager's Average-Revenue-per-BDE relative to the best performer that month. Team Expansion score = whether BDE headcount held or grew vs. the prior month in scope (100 if maintained/grew). Attrition score = 100 − attrition % (from the Sales Data Sheet if tracked there, else from the Master Sheet's Avoidable Attrition column, else assumed 0). Leadership and Reporting Discipline come from the Manager KRA Master Sheet (1–5 scale), editable per session from any manager card. A manager with no Target/Achieved on file yet (e.g. a newly added other-department manager) shows Sales/Productivity/Expansion as N/A and their Final Score is reweighted over Attrition + Leadership + Reporting only, until Target/Achieved figures are added.<br>
-    <b>Live fetch, the Master Sheet &amp; known data gaps.</b> On load (and on "Refresh from Sheet"), this page reads the Sales Data Sheet's registered tabs — see <code>MONTH_TABS</code> and <code>SHEET_ID</code> near the top of the script — and the Manager KRA Master Sheet — see <code>MASTER_SHEET_ID</code>/<code>MASTER_GID</code> — via their published CSV feeds, and re-derives every field through the same formulas as the manual edit boxes. Both sheets need "Anyone with the link" (Viewer) access turned on for a browser to read them with no server in between. The Sales Data Sheet's column layout differs slightly month to month (e.g. July adds a "DRR" column, August adds "Attrition %" and "Avg. per subscription cost", some months split into 1st/2nd fortnight tables) — the parser matches columns by name and sums fortnight tables automatically, but a month with a genuinely new layout may need a quick check. The Master Sheet is matched by its "Month" column text against each tab's label in <code>MONTH_TABS</code>, so a month has to be registered there before its Master Sheet rows are picked up. Conversion-funnel metrics (lead→demo→payment) and headcount/attrition sub-metrics from the KRA document live in the Master Sheet and show as reference figures on each manager's card — they're not yet folded into the weighted score beyond feeding Attrition, since the funnel stages don't map to a single 0–100 KRA score on their own; extend <code>computeAllScores</code> if you want to add that. If either fetch fails (e.g. link-sharing isn't turned on yet), the dashboard falls back to the last figures it successfully loaded.<br>
+    <b>Live fetch, the Master Sheet &amp; known data gaps.</b> On load (and on "Refresh from Sheet"), this page first reads the Sales Data Sheet's own tab list — see <code>discoverSheetTabs()</code> near <code>SHEET_ID</code> in the script — to rebuild <code>MONTH_TABS</code> automatically from whatever month tabs actually exist there (named like "Sep'26"; only July 2026 onward counts — see <code>MONTH_START_CUTOFF</code>), then pulls each month's data plus the Manager KRA Master Sheet — see <code>MASTER_SHEET_ID</code>/<code>MASTER_GID</code> — via their published CSV feeds, and re-derives every field through the same formulas as the manual edit boxes. Both sheets need "Anyone with the link" (Viewer) access turned on for a browser to read them with no server in between. The Sales Data Sheet's column layout differs slightly month to month (e.g. July adds a "DRR" column, August adds "Attrition %" and "Avg. per subscription cost", some months split into 1st/2nd fortnight tables) — the parser matches columns by name and sums fortnight tables automatically, but a month with a genuinely new layout may need a quick check. The Master Sheet is matched by its "Month" column text against each discovered tab's label, so a month's tab must exist in the Sales Data Sheet before its Master Sheet rows are picked up. Conversion-funnel metrics (lead→demo→payment) and headcount/attrition sub-metrics from the KRA document live in the Master Sheet and show as reference figures on each manager's card — they're not yet folded into the weighted score beyond feeding Attrition, since the funnel stages don't map to a single 0–100 KRA score on their own; extend <code>computeAllScores</code> if you want to add that. If either fetch fails (e.g. link-sharing isn't turned on yet, or the tab-list page's markup changes), the dashboard falls back to the last known month list and figures it successfully loaded.<br>
     Built for internal appraisal use at Identixweb / Munim — for Amit Choudhary.
   </footer>
 </div>
@@ -297,7 +314,7 @@
 <script>
 // ---------- DATA ----------
 const MONTHS = {
-  jul: {
+  "2026-07": {
     label: "July 2026",
     managers: [
       {name:"Aakash", department:"Sales", state:"Gujarat", city:"Ahmedabad", target:600000, achieved:287099, pctAchv:47.85, revNoGst:243304, noOfSale:16, bdes:5, avgPerBde:48661, salary:276234, otherCost:75000, totalCost:351234, roiPct:69.27, leftForRoi:107930, attritionPct:null},
@@ -306,7 +323,7 @@ const MONTHS = {
       {name:"Tukaram", department:"Sales", state:"Maharashtra", city:"Pune", target:440000, achieved:289589, pctAchv:65.82, revNoGst:245414, noOfSale:27, bdes:4, avgPerBde:61354, salary:236397, otherCost:60000, totalCost:296397, roiPct:82.80, leftForRoi:50983, attritionPct:null}
     ]
   },
-  aug: {
+  "2026-08": {
     label: "August 2026",
     managers: [
       {name:"Aakash", department:"Sales", state:"Gujarat", city:"Ahmedabad", target:765000, achieved:149889, pctAchv:19.59, revNoGst:127025, noOfSale:10, bdes:6, avgPerBde:21171, salary:276234, otherCost:75000, totalCost:351234, roiPct:36.17, leftForRoi:224209, attritionPct:0},
@@ -349,16 +366,80 @@ const ORIGINAL_MONTHS = JSON.parse(JSON.stringify(MONTHS));
 
 // ---------- LIVE GOOGLE SHEET FETCH ----------
 // The Sheet must have "Anyone with the link" (Viewer) access for this to work from a
-// browser with no server in between. To register a brand-new month tab (e.g. September):
-// open that tab in the Sheet, copy the number after "gid=" in the URL, and add one line
-// below — everything else (parsing, scoring, charts) picks it up automatically.
+// browser with no server in between. MONTH_TABS below is just the OFFLINE FALLBACK seed
+// (so the page still renders something if the tab-list fetch below ever fails) — on every
+// load and Refresh, discoverSheetTabs()/syncMonthTabs() re-read the Sheet's own tab list and
+// rebuild this array automatically, so a brand-new month tab (e.g. "Nov'26") needs no manual
+// gid registration at all any more.
 const SHEET_ID = '1r9oZ1bgSzvS9zHR2oq6zGNgq1-Tf1lzNi4IfVImAecY';
 const MONTH_TABS = [
-  { key: 'jul', gid: '1038648938', label: 'July 2026' },
-  { key: 'aug', gid: '638521177',  label: 'August 2026' },
-  { key: 'sep', gid: '970396452',  label: 'September 2026' }
-  // { key: 'oct', gid: 'PASTE_GID_HERE', label: 'October 2026' },
+  { key: '2026-07', gid: '1038648938', label: 'July 2026', sortKey: 202607 },
+  { key: '2026-08', gid: '638521177',  label: 'August 2026', sortKey: 202608 },
+  { key: '2026-09', gid: '970396452',  label: 'September 2026', sortKey: 202609 }
 ];
+
+// Discovers every month tab in the Sales Data Sheet directly from Google's public read-only
+// "htmlview" page (the same page a plain link-shared viewer sees), which embeds a JS list of
+// every tab's name + gid regardless of column layout. This is unofficial (Google's internal
+// markup, not a documented API) but is the only way to enumerate tabs from a static page with
+// no server and no OAuth — if Google ever changes this markup, the regex below will simply
+// find nothing and syncMonthTabs() falls back to the last known MONTH_TABS untouched.
+const MONTH_ABBR = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+const MONTH_FULL = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTH_START_CUTOFF = 202607; // July 2026 — earliest month this dashboard tracks; older
+                                    // tabs in this Sheet predate the appraisal and are ignored.
+
+function decodeJsEscapes(s){
+  return s.replace(/\\x([0-9a-fA-F]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+}
+// Parses a Sheet tab title like "Oct'26", "May' 26" or "September ' 25" into {year, month}.
+// Returns null for tab titles that don't match this sheet's "Month'YY" naming (e.g. "ROI") —
+// those are simply not treated as dashboard months.
+function parseTabTitle(title){
+  const m = /^([A-Za-z]+)\s*'\s*(\d{2,4})$/.exec((title || '').trim());
+  if(!m) return null;
+  const monthNum = MONTH_ABBR[m[1].slice(0, 3).toLowerCase()];
+  if(!monthNum) return null;
+  let year = parseInt(m[2], 10);
+  if(year < 100) year += 2000;
+  return { year, month: monthNum };
+}
+async function discoverSheetTabs(){
+  const res = await fetch(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/htmlview`, { cache: 'no-store' });
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  const html = await res.text();
+  const re = /items\.push\(\{name:\s*"((?:[^"\\]|\\.)*)"[^}]*?gid:\s*"(-?\d+)"/g;
+  const tabs = [];
+  let mm;
+  while((mm = re.exec(html))){
+    const parsed = parseTabTitle(decodeJsEscapes(mm[1]));
+    if(!parsed) continue;
+    const sortKey = parsed.year * 100 + parsed.month;
+    if(sortKey < MONTH_START_CUTOFF) continue;
+    tabs.push({
+      key: parsed.year + '-' + String(parsed.month).padStart(2, '0'),
+      gid: mm[2],
+      label: MONTH_FULL[parsed.month] + ' ' + parsed.year,
+      sortKey
+    });
+  }
+  return tabs.sort((a, b) => a.sortKey - b.sortKey);
+}
+// Rebuilds MONTH_TABS in place (so every other reference to the same array/object sees the
+// update) from whatever the Sheet's tab list says right now. On failure, leaves MONTH_TABS
+// exactly as it was — the dashboard just keeps showing the months it already knew about.
+async function syncMonthTabs(){
+  try{
+    const discovered = await discoverSheetTabs();
+    if(!discovered.length) return false;
+    MONTH_TABS.length = 0;
+    discovered.forEach(t => MONTH_TABS.push(t));
+    return true;
+  } catch(err){
+    console.warn('Month-tab discovery failed, keeping existing MONTH_TABS', err);
+    return false;
+  }
+}
 // Second sheet: the "Manager KRA Master Sheet" — where HR/founder fill in Leadership &
 // Reporting Discipline scores (and optional sub-metrics), and where any other department's
 // managers get added. One tab, no per-month tab IDs to register — new months/managers are
@@ -631,6 +712,7 @@ function mergeMasterIntoMonths(){
 function hasRevenueData(m){ return m.target > 0 || m.achieved > 0; }
 
 async function refreshAllFromSheet(showAlertOnFail){
+  await syncMonthTabs(); // pick up any newly-added month tab before fetching each one's data
   let anySuccess = false, anyFail = false;
   for(const tab of MONTH_TABS){
     try{
@@ -776,7 +858,7 @@ function computeAllScores(m, monthKey, monthData){
 }
 
 // ---------- RENDER ----------
-let currentMonth = 'jul';
+let currentMonth = '2026-07';
 let currentView = 'month';
 
 function renderKpis(monthKey){
@@ -1079,6 +1161,90 @@ function renderCompareView(){
     <table class="data-table">
       <thead><tr><th>Manager</th>${headerCells}<th>BDEs (${tabs.map(t=>t.label.split(' ')[0]).join('→')})</th></tr></thead>
       <tbody>${rows}</tbody>
+    </table>`;
+
+  renderAvgScoreSection();
+}
+
+// ---------- CUSTOM-RANGE AVERAGE SCORE (for appraisal decisions) ----------
+let rangeFrom = null, rangeTo = null; // monthKeys picked in the "From"/"To" selectors below
+
+function populateRangeSelectors(){
+  const fromSel = document.getElementById('range-from');
+  const toSel = document.getElementById('range-to');
+  if(!fromSel || !toSel || !MONTH_TABS.length) return;
+  const keys = MONTH_TABS.map(t => t.key);
+  if(!rangeFrom || !keys.includes(rangeFrom)) rangeFrom = keys[0];
+  if(!rangeTo || !keys.includes(rangeTo)) rangeTo = keys[keys.length - 1];
+  const opts = MONTH_TABS.map(t => `<option value="${t.key}">${t.label}</option>`).join('');
+  fromSel.innerHTML = opts;
+  toSel.innerHTML = opts;
+  fromSel.value = rangeFrom;
+  toSel.value = rangeTo;
+}
+function onRangeChange(){
+  const fromSel = document.getElementById('range-from');
+  const toSel = document.getElementById('range-to');
+  rangeFrom = fromSel.value;
+  rangeTo = toSel.value;
+  const idxFrom = MONTH_TABS.findIndex(t => t.key === rangeFrom);
+  const idxTo = MONTH_TABS.findIndex(t => t.key === rangeTo);
+  if(idxFrom > idxTo){ // user picked a "From" later than "To" — swap so the range still makes sense
+    [rangeFrom, rangeTo] = [rangeTo, rangeFrom];
+    fromSel.value = rangeFrom; toSel.value = rangeTo;
+  }
+  renderAvgScoreSection();
+}
+// Each manager's average Final Score (the same weighted KRA score shown on their card) across
+// every month in the selected From→To range — sorted best-to-worst so it can be read straight
+// off as an appraisal ranking. Months where a manager has no card yet are simply excluded from
+// their average rather than counted as a zero.
+function renderAvgScoreSection(){
+  populateRangeSelectors();
+  const idxFrom = MONTH_TABS.findIndex(t => t.key === rangeFrom);
+  const idxTo = MONTH_TABS.findIndex(t => t.key === rangeTo);
+  const tabs = (idxFrom === -1 || idxTo === -1) ? [] : MONTH_TABS.slice(idxFrom, idxTo + 1).filter(t => MONTHS[t.key] && MONTHS[t.key].managers.length);
+
+  const subEl = document.getElementById('avg-score-sub');
+  if(subEl) subEl.textContent = tabs.length
+    ? `Averaged across ${tabs.map(t => t.label).join(', ')} (${tabs.length} month${tabs.length > 1 ? 's' : ''}) — for appraisal, rank managers by this average.`
+    : 'No months in the selected range have data yet.';
+  if(!tabs.length){
+    document.getElementById('avg-score-chart').innerHTML = '';
+    document.getElementById('avg-score-table-wrap').innerHTML = '';
+    return;
+  }
+
+  const names = [...new Set(tabs.flatMap(t => MONTHS[t.key].managers.map(m => m.name)))];
+  const rows = names.map(name => {
+    const perMonth = tabs.map(t => {
+      const m = MONTHS[t.key].managers.find(x => x.name === name);
+      if(!m) return null;
+      const { weighted } = computeAllScores(m, t.key, MONTHS[t.key]);
+      return weighted;
+    });
+    const valid = perMonth.filter(v => v !== null && v !== undefined && !isNaN(v));
+    const avg = valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
+    return { name, perMonth, avg, monthsCounted: valid.length };
+  }).sort((a, b) => (b.avg ?? -1) - (a.avg ?? -1));
+
+  document.getElementById('avg-score-chart').innerHTML = rows.map(r => {
+    const pct = r.avg === null ? 0 : Math.min(100, r.avg);
+    const color = r.avg === null ? 'var(--text-muted)' : pct >= 80 ? 'var(--good)' : pct >= 60 ? 'var(--warning)' : 'var(--critical)';
+    return `<div class="pct-bar-row"><div class="bname">${r.name}</div>
+      <div class="pct-track"><div class="pct-fill" style="width:${r.avg === null ? 4 : Math.max(4, pct)}%; background:${color}"></div></div>
+      <div class="pct-label">${r.avg === null ? '—' : r.avg.toFixed(1)}</div></div>`;
+  }).join('');
+
+  const headerCells = tabs.map(t => `<th>${t.label}</th>`).join('');
+  const bodyRows = rows.map(r => {
+    const cells = r.perMonth.map(v => `<td>${v === null || v === undefined ? '—' : v.toFixed(1)}</td>`).join('');
+    return `<tr><td class="name-cell">${r.name}</td>${cells}<td><b>${r.avg === null ? '—' : r.avg.toFixed(1)}</b></td><td>${r.monthsCounted}/${tabs.length}</td></tr>`;
+  }).join('');
+  document.getElementById('avg-score-table-wrap').innerHTML = `
+    <table class="data-table">
+      <thead><tr><th>Manager</th>${headerCells}<th>Average score</th><th>Months counted</th></tr></thead>
+      <tbody>${bodyRows}</tbody>
     </table>`;
 }
 
