@@ -264,7 +264,7 @@
 <div id="auth-gate">
   <div class="gate-card">
     <h2>Sign in to view this dashboard</h2>
-    <p>This dashboard shows live sales performance data pulled directly from the underlying Google Sheets. Sign in with the Google account that's been given viewer access to those Sheets — any Gmail, Workspace or other Google account works, as long as it's been shared on the Sheets.</p>
+    <p>This dashboard shows live sales performance data pulled directly from the underlying Google Sheets. Sign in with your Google account (any Gmail, Workspace or other Google account) — you'll get in if you're on the dashboard's own access list, separate from who has access to the underlying Sheets.</p>
     <div class="gate-error" id="gate-error"></div>
     <div class="gsi-slot">
       <button class="icon-btn" id="gsi-signin-btn" onclick="signIn()" style="padding:9px 18px; font-size:13px;" disabled>🔐 Sign in with Google</button>
@@ -272,7 +272,7 @@
       <button class="icon-btn" id="gsi-switch-btn" onclick="switchAccount()" style="padding:9px 18px; font-size:13px; display:none; margin-left:8px;">Try a different account</button>
     </div>
     <div class="gate-signedout-email" id="gate-signedout-email"></div>
-    <div class="gate-note">Access is enforced by Google — this page reads the Sheets through the real Sheets API using your sign-in, so only accounts the Sheets have actually been shared with can see any data here. No password or personal data is entered into or stored by this page.</div>
+    <div class="gate-note">Access is checked against this dashboard's own access list (not Google Sheets sharing) using your Google sign-in to confirm who you are. No password or personal data is entered into or stored by this page.</div>
   </div>
 </div>
 
