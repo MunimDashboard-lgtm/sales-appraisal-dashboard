@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sales Manager Appraisal Dashboard — Munim</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root{ color-scheme: light; }
   *{ box-sizing: border-box; }
@@ -211,9 +212,55 @@
   section{ margin-bottom:8px; }
   .section-title{ font-size:16px; font-weight:700; margin: 30px 0 4px; }
   .section-sub{ font-size:12.5px; color:var(--text-muted); margin-bottom:16px; }
+
+  /* ---------- Sign-in gate ---------- */
+  #auth-gate{
+    position:fixed; inset:0; background:var(--page-plane); z-index:100;
+    display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  #auth-gate .gate-card{
+    background:var(--surface-1); border:1px solid var(--border); border-radius:16px;
+    padding:36px 40px; max-width:420px; text-align:center;
+  }
+  #auth-gate h2{ font-size:18px; margin:0 0 8px; }
+  #auth-gate p{ font-size:13px; color:var(--text-secondary); line-height:1.6; margin:0 0 20px; }
+  #auth-gate .gsi-slot{ display:flex; justify-content:center; margin-bottom:14px; }
+  #auth-gate .gate-note{ font-size:11.5px; color:var(--text-muted); margin-top:16px; line-height:1.6; }
+  #auth-gate .gate-error{
+    display:none; background:rgba(208,59,59,0.08); border:1px solid var(--critical); color:var(--critical);
+    border-radius:8px; padding:10px 14px; font-size:12.5px; margin-bottom:16px; text-align:left; line-height:1.5;
+  }
+  #auth-gate .gate-signedout-email{ font-size:12px; color:var(--text-muted); margin-top:4px; }
+  .user-chip{
+    display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-secondary);
+    border:1px solid var(--border); border-radius:20px; padding:5px 12px 5px 6px; background:var(--surface-1);
+  }
+  .user-chip .avatar-sm{ width:20px; height:20px; border-radius:50%; }
+  .user-chip button{
+    font-family:inherit; background:none; border:none; color:var(--text-muted); text-decoration:underline;
+    cursor:pointer; font-size:11.5px; padding:0;
+  }
+  #app-root{ display:none; }
 </style>
 </head>
 <body class="viz-root">
+
+<div id="auth-gate">
+  <div class="gate-card">
+    <h2>Sign in to view this dashboard</h2>
+    <p>This dashboard shows live sales performance data pulled directly from the underlying Google Sheets. Sign in with the Google account that's been given viewer access to those Sheets — any Gmail, Workspace or other Google account works, as long as it's been shared on the Sheets.</p>
+    <div class="gate-error" id="gate-error"></div>
+    <div class="gsi-slot">
+      <button class="icon-btn" id="gsi-signin-btn" onclick="signIn()" style="padding:9px 18px; font-size:13px;" disabled>🔐 Sign in with Google</button>
+      <button class="icon-btn" id="gsi-retry-btn" onclick="retryAccessCheck()" style="padding:9px 18px; font-size:13px; display:none; margin-left:8px;">↻ Check access again</button>
+      <button class="icon-btn" id="gsi-switch-btn" onclick="switchAccount()" style="padding:9px 18px; font-size:13px; display:none; margin-left:8px;">Try a different account</button>
+    </div>
+    <div class="gate-signedout-email" id="gate-signedout-email"></div>
+    <div class="gate-note">Access is enforced by Google — this page reads the Sheets through the real Sheets API using your sign-in, so only accounts the Sheets have actually been shared with can see any data here. No password or personal data is entered into or stored by this page.</div>
+  </div>
+</div>
+
+<div id="app-root">
 <div class="page">
 
   <header class="topbar">
@@ -222,6 +269,7 @@
       <div class="sub">FST Sales Team — KRA-weighted performance for Aakash, Pritam, Harish &amp; Tukaram, built from the Sales Data Sheet, the Manager KRA Master Sheet and the Sales Manager KRA &amp; Weightage Structure. The same 60/15/10/5/5/5 framework can score managers from any department once they're added to the Master Sheet.</div>
     </div>
     <div class="top-actions">
+      <span class="user-chip" id="user-chip" hidden></span>
       <button class="icon-btn" onclick="manualRefresh()">🔄 Refresh from Sheet</button>
       <button class="icon-btn" onclick="resetAllData()">↺ Reset all data</button>
       <button class="icon-btn" id="theme-toggle" onclick="toggleTheme()">🌙 Dark mode</button>
@@ -236,7 +284,7 @@
   </div>
 
   <div class="assumption-banner">
-    <b>How to read this:</b> Four KRAs are calculated automatically from the sales sheet — <b>Sales Achievement (60%)</b>, <b>Conversion &amp; Productivity (15%)</b>, <b>Team Expansion (10%)</b> and <b>Attrition &amp; Retention (5%)</b>. The remaining two — <b>Leadership (5%)</b> and <b>Reporting Discipline (5%)</b> — are qualitative. <b>Manager KRA Master Sheet:</b> Leadership and Reporting Discipline scores (and optional sub-metrics — conversion-funnel %, headcount, avoidable attrition) are pulled automatically from a second Google Sheet, the "Manager KRA Master Sheet" — fill scores in there and they show up here pre-filled (still editable per session). That same sheet is where you add managers from other departments: any manager/month row you add there appears as its own card here, scored on Leadership/Reporting/Attrition immediately and on Sales/Productivity/Expansion once you give them Target &amp; Achieved figures via "✏️ Edit raw data" (until then those three KRAs show "N/A" and the score is reweighted over what does apply). <b>Live data:</b> this page pulls Target/Achieved/BDE/Cost from the Sales Data Sheet and Leadership/Reporting/sub-metrics from the Master Sheet each time it's opened — <b>both sheets need "Anyone with the link" (Viewer) access turned on</b> for this to work from a browser with no server in between. Click "🔄 Refresh from Sheet" any time to re-pull either. <b>New months are automatic:</b> add a new tab to the Sales Data Sheet named like the existing ones (e.g. "Nov'26") and it's picked up on the next load or Refresh — no setup needed. Only tabs from July 2026 onward count as dashboard months (earlier tabs in that sheet predate this appraisal and are ignored). The Master Sheet works the same way already — just add rows with that month's label. <b>Everything here is also editable:</b> open "✏️ Edit raw data" on any manager card to correct a figure by hand — the % achieved, ROI, KRA scores, charts and totals all recalculate instantly. <b>Note:</b> hand-edits and any Leadership/Reporting score you change here (overriding the Master Sheet) only last for this browser tab/session — a "🔄 Refresh" or closing the tab discards them, so make lasting changes in the Master Sheet itself. Use "↺ Reset all data" to discard edits and go back to the last fetched (or saved) figures.
+    <b>How to read this:</b> Four KRAs are calculated automatically from the sales sheet — <b>Sales Achievement (60%)</b>, <b>Conversion &amp; Productivity (15%)</b>, <b>Team Expansion (10%)</b> and <b>Attrition &amp; Retention (5%)</b>. The remaining two — <b>Leadership (5%)</b> and <b>Reporting Discipline (5%)</b> — are qualitative. <b>Manager KRA Master Sheet:</b> Leadership and Reporting Discipline scores (and optional sub-metrics — conversion-funnel %, headcount, avoidable attrition) are pulled automatically from a second Google Sheet, the "Manager KRA Master Sheet" — fill scores in there and they show up here pre-filled (still editable per session). That same sheet is where you add managers from other departments: any manager/month row you add there appears as its own card here, scored on Leadership/Reporting/Attrition immediately and on Sales/Productivity/Expansion once you give them Target &amp; Achieved figures via "✏️ Edit raw data" (until then those three KRAs show "N/A" and the score is reweighted over what does apply). <b>Live data:</b> this page pulls Target/Achieved/BDE/Cost from the Sales Data Sheet and Leadership/Reporting/sub-metrics from the Master Sheet each time it's opened, using your own signed-in Google account — <b>both sheets need to be shared with your account as a Viewer</b> (any Gmail, Workspace or other Google account) for this to work; that sharing is also the actual access control for who can see this dashboard's data at all. Click "🔄 Refresh from Sheet" any time to re-pull either. <b>New months are automatic:</b> add a new tab to the Sales Data Sheet named like the existing ones (e.g. "Nov'26") and it's picked up on the next load or Refresh — no setup needed. Only tabs from July 2026 onward count as dashboard months (earlier tabs in that sheet predate this appraisal and are ignored). The Master Sheet works the same way already — just add rows with that month's label. <b>Everything here is also editable:</b> open "✏️ Edit raw data" on any manager card to correct a figure by hand — the % achieved, ROI, KRA scores, charts and totals all recalculate instantly. <b>Note:</b> hand-edits and any Leadership/Reporting score you change here (overriding the Master Sheet) only last for this browser tab/session — a "🔄 Refresh" or closing the tab discards them, so make lasting changes in the Master Sheet itself. Use "↺ Reset all data" to discard edits and go back to the last fetched (or saved) figures.
   </div>
 
   <nav class="tabs" id="month-tabs"></nav>
@@ -309,9 +357,10 @@
 
   <footer class="page-footer">
     <b>Methodology.</b> Sales Achievement score = % of target achieved (capped at 100). Productivity score = the manager's Average-Revenue-per-BDE relative to the best performer that month. Team Expansion score = whether BDE headcount held or grew vs. the prior month in scope (100 if maintained/grew). Attrition score = 100 − attrition % (from the Sales Data Sheet if tracked there, else from the Master Sheet's Avoidable Attrition column, else assumed 0). Leadership and Reporting Discipline come from the Manager KRA Master Sheet (1–5 scale), editable per session from any manager card. A manager with no Target/Achieved on file yet (e.g. a newly added other-department manager) shows Sales/Productivity/Expansion as N/A and their Final Score is reweighted over Attrition + Leadership + Reporting only, until Target/Achieved figures are added.<br>
-    <b>Live fetch, the Master Sheet &amp; known data gaps.</b> On load (and on "Refresh from Sheet"), this page first reads the Sales Data Sheet's own tab list — see <code>discoverSheetTabs()</code> near <code>SHEET_ID</code> in the script — to rebuild <code>MONTH_TABS</code> automatically from whatever month tabs actually exist there (named like "Sep'26"; only July 2026 onward counts — see <code>MONTH_START_CUTOFF</code>), then pulls each month's data plus the Manager KRA Master Sheet — see <code>MASTER_SHEET_ID</code>/<code>MASTER_GID</code> — via their published CSV feeds, and re-derives every field through the same formulas as the manual edit boxes. Both sheets need "Anyone with the link" (Viewer) access turned on for a browser to read them with no server in between. The Sales Data Sheet's column layout differs slightly month to month (e.g. July adds a "DRR" column, August adds "Attrition %" and "Avg. per subscription cost", some months split into 1st/2nd fortnight tables) — the parser matches columns by name and sums fortnight tables automatically, but a month with a genuinely new layout may need a quick check. The Master Sheet is matched by its "Month" column text against each discovered tab's label, so a month's tab must exist in the Sales Data Sheet before its Master Sheet rows are picked up. Conversion-funnel metrics (lead→demo→payment) and headcount/attrition sub-metrics from the KRA document live in the Master Sheet and show as reference figures on each manager's card — they're not yet folded into the weighted score beyond feeding Attrition, since the funnel stages don't map to a single 0–100 KRA score on their own; extend <code>computeAllScores</code> if you want to add that. If either fetch fails (e.g. link-sharing isn't turned on yet, or the tab-list page's markup changes), the dashboard falls back to the last known month list and figures it successfully loaded.<br>
+    <b>Access, live fetch, the Master Sheet &amp; known data gaps.</b> This dashboard is gated behind Google sign-in (see <code>#auth-gate</code> / <code>initGoogleAuth</code> near the top of the script) — on sign-in, the page requests an OAuth access token for the signed-in Google account (any Gmail, Workspace or other Google account) and probes the Sales Data Sheet with it; the actual access control is whatever Viewer permissions that account has on the two Sheets in Google's own Share dialog, not anything hardcoded here. Once past the gate, the page reads the Sales Data Sheet's own tab list via the authenticated Sheets API metadata endpoint — see <code>discoverSheetTabs()</code> near <code>SHEET_ID</code> — to rebuild <code>MONTH_TABS</code> automatically from whatever month tabs actually exist there (named like "Sep'26"; only July 2026 onward counts — see <code>MONTH_START_CUTOFF</code>), then pulls each month's data plus the Manager KRA Master Sheet — see <code>MASTER_SHEET_ID</code>/<code>MASTER_GID</code> — via authenticated <code>values.get</code> calls, and re-derives every field through the same formulas as the manual edit boxes. The Sales Data Sheet's column layout differs slightly month to month (e.g. July adds a "DRR" column, August adds "Attrition %" and "Avg. per subscription cost", some months split into 1st/2nd fortnight tables) — the parser matches columns by name and sums fortnight tables automatically, but a month with a genuinely new layout may need a quick check. The Master Sheet is matched by its "Month" column text against each discovered tab's label, so a month's tab must exist in the Sales Data Sheet before its Master Sheet rows are picked up. Conversion-funnel metrics (lead→demo→payment) and headcount/attrition sub-metrics from the KRA document live in the Master Sheet and show as reference figures on each manager's card — they're not yet folded into the weighted score beyond feeding Attrition, since the funnel stages don't map to a single 0–100 KRA score on their own; extend <code>computeAllScores</code> if you want to add that. If a fetch fails after sign-in (e.g. the Master Sheet hasn't been shared with this account yet, or a transient API error), the dashboard falls back to the last known data and figures it successfully loaded.<br>
     Built for internal appraisal use at Identixweb / Munim — for Amit Choudhary.
   </footer>
+</div>
 </div>
 
 <div class="tooltip" id="tooltip"></div>
@@ -369,34 +418,173 @@ Object.values(MONTHS).forEach(month => month.managers.forEach(recomputeManager))
 // Deep copy of the original (recomputed) sheet figures, kept so edits can be reset.
 const ORIGINAL_MONTHS = JSON.parse(JSON.stringify(MONTHS));
 
+// ---------- GOOGLE SIGN-IN + AUTHENTICATED SHEETS API ----------
+// Access to this dashboard is gated by real Google sign-in (see the #auth-gate block far
+// below) rather than by "Anyone with the link" sharing. Every fetch from here on goes through
+// the authenticated Sheets API (sheets.googleapis.com) using the signed-in user's own OAuth
+// access token — so the actual access control is whatever Viewer permissions each Sheet has
+// been given in Google Sheets' own Share dialog. This client ID only needs to exist in the
+// Google Cloud Console; the token flow below never touches a client secret.
+const OAUTH_CLIENT_ID = '168275377096-mk816j9t47l2ci962qf5ov93c5lru9sd.apps.googleusercontent.com';
+const OAUTH_SCOPE = 'https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile';
+
+let tokenClient = null;
+let accessToken = null;
+let currentUser = null; // {email, name, picture} from the userinfo endpoint
+
+// google.accounts.oauth2 comes from the async/deferred GSI <script> in <head> — it may not
+// exist yet by the time this inline script runs, so poll briefly rather than assuming it's
+// ready. Once available, wire up the token client used by every sign-in action below.
+function waitForGoogleIdentity(cb, attemptsLeft){
+  if(attemptsLeft === undefined) attemptsLeft = 100; // ~5s at 50ms
+  if(window.google && window.google.accounts && window.google.accounts.oauth2){ cb(); return; }
+  if(attemptsLeft <= 0){ showGateError('Could not load Google Sign-In. Check your connection and reload the page.'); return; }
+  setTimeout(() => waitForGoogleIdentity(cb, attemptsLeft - 1), 50);
+}
+function initGoogleAuth(){
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: OAUTH_CLIENT_ID,
+    scope: OAUTH_SCOPE,
+    callback: handleTokenResponse
+  });
+  document.getElementById('gsi-signin-btn').disabled = false;
+}
+
+function signIn(){
+  hideGateError();
+  tokenClient.requestAccessToken({ prompt: '' });
+}
+function switchAccount(){
+  hideGateError();
+  tokenClient.requestAccessToken({ prompt: 'select_account' });
+}
+function retryAccessCheck(){
+  hideGateError();
+  runAccessCheck();
+}
+function signOut(){
+  if(accessToken) google.accounts.oauth2.revoke(accessToken, () => {});
+  accessToken = null;
+  currentUser = null;
+  location.reload();
+}
+
+// Re-requests a token with no visible prompt (works while the user's existing consent is
+// still valid) — used to transparently recover from an expired access token mid-session.
+function requestTokenSilently(){
+  return new Promise((resolve, reject) => {
+    const restore = tokenClient.callback;
+    tokenClient.callback = (resp) => {
+      tokenClient.callback = restore;
+      if(resp.error){ reject(resp); return; }
+      accessToken = resp.access_token;
+      resolve(resp);
+    };
+    tokenClient.requestAccessToken({ prompt: '' });
+  });
+}
+
+// Every authenticated Sheets API call goes through here so 401 (expired token) gets one
+// silent retry, and 403 (signed in, but this account has no Viewer access to the Sheet) is
+// surfaced distinctly from a generic network/HTTP failure.
+async function apiFetch(url, _retried){
+  if(!accessToken) throw { code: 401, message: 'Not signed in' };
+  const res = await fetch(url, { headers: { Authorization: 'Bearer ' + accessToken } });
+  if(res.status === 401 && !_retried){
+    try{ await requestTokenSilently(); return apiFetch(url, true); }
+    catch(e){ throw { code: 401, message: 'Session expired — please sign in again.' }; }
+  }
+  if(res.status === 403) throw { code: 403, message: 'This account does not have access to this sheet.' };
+  if(!res.ok) throw { code: res.status, message: 'HTTP ' + res.status };
+  return res.json();
+}
+async function fetchUserInfo(){
+  const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: 'Bearer ' + accessToken } });
+  if(!res.ok) throw new Error('userinfo HTTP ' + res.status);
+  return res.json();
+}
+
+function showGateError(msg){
+  const el = document.getElementById('gate-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function hideGateError(){
+  document.getElementById('gate-error').style.display = 'none';
+}
+
+async function handleTokenResponse(resp){
+  if(resp.error){
+    showGateError('Sign-in was cancelled or failed (' + resp.error + '). Please try again.');
+    return;
+  }
+  accessToken = resp.access_token;
+  try{ currentUser = await fetchUserInfo(); }
+  catch(err){ console.warn('userinfo fetch failed', err); currentUser = null; }
+  await runAccessCheck();
+}
+
+// Probes the Sales Data Sheet via the authenticated metadata endpoint — success means this
+// account has real Viewer access (Google's own Sheets-sharing permissions are the actual
+// gate); a 403 means signed-in-but-not-shared, which gets its own message rather than a
+// generic error so the user knows exactly what to ask for.
+async function runAccessCheck(){
+  document.getElementById('gsi-signin-btn').style.display = 'none';
+  try{
+    await discoverSheetTabs();
+    enterApp();
+  } catch(err){
+    const who = currentUser ? currentUser.email : 'this account';
+    if(err && err.code === 403){
+      showGateError(`Signed in as ${who}, but this account doesn't have viewer access to the Sales Data Sheet yet. Ask Amit to share the Sheet with this email address (Viewer is enough), then click "Check access again".`);
+    } else if(err && err.code === 401){
+      showGateError('Your sign-in expired before access could be verified. Please sign in again.');
+      document.getElementById('gsi-signin-btn').style.display = '';
+    } else {
+      showGateError(`Could not verify access for ${who} right now (network or Sheets API error). Check your connection and try again.`);
+    }
+    document.getElementById('gsi-retry-btn').style.display = '';
+    document.getElementById('gsi-switch-btn').style.display = '';
+    document.getElementById('gate-signedout-email').textContent = currentUser ? `Signed in as ${currentUser.email}` : '';
+  }
+}
+
+function renderUserChip(){
+  const chip = document.getElementById('user-chip');
+  if(!chip || !currentUser) return;
+  chip.hidden = false;
+  const avatar = currentUser.picture ? `<img class="avatar-sm" src="${currentUser.picture}" alt="">` : '';
+  chip.innerHTML = `${avatar}<span>${currentUser.email}</span><button onclick="signOut()">Sign out</button>`;
+}
+
+function enterApp(){
+  document.getElementById('auth-gate').style.display = 'none';
+  document.getElementById('app-root').style.display = 'block';
+  renderUserChip();
+  boot();
+}
+
 // ---------- LIVE GOOGLE SHEET FETCH ----------
-// The Sheet must have "Anyone with the link" (Viewer) access for this to work from a
-// browser with no server in between. MONTH_TABS below is just the OFFLINE FALLBACK seed
-// (so the page still renders something if the tab-list fetch below ever fails) — on every
-// load and Refresh, discoverSheetTabs()/syncMonthTabs() re-read the Sheet's own tab list and
-// rebuild this array automatically, so a brand-new month tab (e.g. "Nov'26") needs no manual
-// gid registration at all any more.
+// MONTH_TABS below is just the OFFLINE FALLBACK seed (so the page still renders something if
+// the tab-list fetch below ever fails before it can run once) — on every load and Refresh,
+// discoverSheetTabs()/syncMonthTabs() re-read the Sheet's own tab list via the authenticated
+// Sheets API and rebuild this array automatically, so a brand-new month tab (e.g. "Nov'26")
+// needs no manual registration at all.
 const SHEET_ID = '1r9oZ1bgSzvS9zHR2oq6zGNgq1-Tf1lzNi4IfVImAecY';
 const MONTH_TABS = [
-  { key: '2026-07', gid: '1038648938', label: 'July 2026', sortKey: 202607 },
-  { key: '2026-08', gid: '638521177',  label: 'August 2026', sortKey: 202608 },
-  { key: '2026-09', gid: '970396452',  label: 'September 2026', sortKey: 202609 }
+  { key: '2026-07', title: "Jul'26", label: 'July 2026', sortKey: 202607 },
+  { key: '2026-08', title: "Aug'26", label: 'August 2026', sortKey: 202608 },
+  { key: '2026-09', title: "Sep'26", label: 'September 2026', sortKey: 202609 }
 ];
 
-// Discovers every month tab in the Sales Data Sheet directly from Google's public read-only
-// "htmlview" page (the same page a plain link-shared viewer sees), which embeds a JS list of
-// every tab's name + gid regardless of column layout. This is unofficial (Google's internal
-// markup, not a documented API) but is the only way to enumerate tabs from a static page with
-// no server and no OAuth — if Google ever changes this markup, the regex below will simply
-// find nothing and syncMonthTabs() falls back to the last known MONTH_TABS untouched.
+// Discovers every month tab in the Sales Data Sheet via the official, authenticated Sheets API
+// metadata endpoint (spreadsheets.get) — returns every tab's real title, which is also what's
+// needed to build the A1-notation range for the values.get call in fetchMonthFromSheet below.
 const MONTH_ABBR = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
 const MONTH_FULL = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
 const MONTH_START_CUTOFF = 202607; // July 2026 — earliest month this dashboard tracks; older
                                     // tabs in this Sheet predate the appraisal and are ignored.
 
-function decodeJsEscapes(s){
-  return s.replace(/\\x([0-9a-fA-F]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
-}
 // Parses a Sheet tab title like "Oct'26", "May' 26" or "September ' 25" into {year, month}.
 // Returns null for tab titles that don't match this sheet's "Month'YY" naming (e.g. "ROI") —
 // those are simply not treated as dashboard months.
@@ -409,25 +597,29 @@ function parseTabTitle(title){
   if(year < 100) year += 2000;
   return { year, month: monthNum };
 }
+// Looks up a specific tab's title within a spreadsheet by its numeric sheetId (gid) — needed
+// for the Master Sheet, where we only have the one fixed gid rather than a whole tab list.
+async function getSheetTitleByGid(spreadsheetId, gid){
+  const data = await apiFetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties`);
+  const found = (data.sheets || []).find(s => String(s.properties.sheetId) === String(gid));
+  return found ? found.properties.title : null;
+}
 async function discoverSheetTabs(){
-  const res = await fetch(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/htmlview`, { cache: 'no-store' });
-  if(!res.ok) throw new Error('HTTP ' + res.status);
-  const html = await res.text();
-  const re = /items\.push\(\{name:\s*"((?:[^"\\]|\\.)*)"[^}]*?gid:\s*"(-?\d+)"/g;
+  const data = await apiFetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?fields=sheets.properties`);
   const tabs = [];
-  let mm;
-  while((mm = re.exec(html))){
-    const parsed = parseTabTitle(decodeJsEscapes(mm[1]));
-    if(!parsed) continue;
+  (data.sheets || []).forEach(s => {
+    const props = s.properties;
+    const parsed = parseTabTitle(props.title);
+    if(!parsed) return;
     const sortKey = parsed.year * 100 + parsed.month;
-    if(sortKey < MONTH_START_CUTOFF) continue;
+    if(sortKey < MONTH_START_CUTOFF) return;
     tabs.push({
       key: parsed.year + '-' + String(parsed.month).padStart(2, '0'),
-      gid: mm[2],
+      title: props.title,
       label: MONTH_FULL[parsed.month] + ' ' + parsed.year,
       sortKey
     });
-  }
+  });
   return tabs.sort((a, b) => a.sortKey - b.sortKey);
 }
 // Rebuilds MONTH_TABS in place (so every other reference to the same array/object sees the
@@ -456,30 +648,10 @@ let dataSource = { status: 'cached', lastFetch: null }; // 'cached' | 'live' | '
 let masterSource = { status: 'cached', lastFetch: null };
 recomputePrevBdesChain();
 
-function csvUrl(gid){
-  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}`;
-}
-
-// Minimal RFC4180-ish CSV parser (handles quoted fields with embedded commas/newlines).
-function parseCSV(text){
-  const rows = []; let row = []; let field = ''; let inQuotes = false;
-  for(let i = 0; i < text.length; i++){
-    const c = text[i];
-    if(inQuotes){
-      if(c === '"'){
-        if(text[i+1] === '"'){ field += '"'; i++; } else { inQuotes = false; }
-      } else field += c;
-    } else {
-      if(c === '"') inQuotes = true;
-      else if(c === ','){ row.push(field); field = ''; }
-      else if(c === '\n' || c === '\r'){
-        if(c === '\r' && text[i+1] === '\n') i++;
-        row.push(field); field = ''; rows.push(row); row = [];
-      } else field += c;
-    }
-  }
-  if(field.length || row.length){ row.push(field); rows.push(row); }
-  return rows.filter(r => r.some(cell => cell !== ''));
+// A1-notation range for a whole tab, with the sheet title quoted and apostrophes escaped the
+// way the Sheets API expects (e.g. Sep'26 -> 'Sep''26'!A1:Z300).
+function sheetRange(title){
+  return `'${title.replace(/'/g, "''")}'!A1:Z300`;
 }
 
 // Fuzzy header -> canonical field map. Matches whichever wording that month's sheet used.
@@ -532,8 +704,7 @@ function applyPositionalFallback(colMap, rows, dataRowIdx){
 // A month's tab may be one simple table, or split into "1st/2nd fortnight" sub-tables
 // (several months in this sheet are laid out that way) — this finds every table that
 // starts with a "Name" header cell and aggregates all of them by manager name.
-function parseMonthCSV(csvText){
-  const rows = parseCSV(csvText);
+function parseMonthRows(rows){
   const managers = {}; // name -> accumulated raw fields
   for(let r = 0; r < rows.length; r++){
     const headerIdx = rows[r].findIndex(c => /^name$/i.test((c||'').trim()));
@@ -585,10 +756,9 @@ function parseMonthCSV(csvText){
 }
 
 async function fetchMonthFromSheet(tab){
-  const res = await fetch(csvUrl(tab.gid), { cache: 'no-store' });
-  if(!res.ok) throw new Error('HTTP ' + res.status);
-  const text = await res.text();
-  const managers = parseMonthCSV(text);
+  const range = encodeURIComponent(sheetRange(tab.title));
+  const data = await apiFetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?valueRenderOption=FORMATTED_VALUE`);
+  const managers = parseMonthRows(data.values || []);
   if(!managers.length) throw new Error('No manager rows parsed');
   return managers;
 }
@@ -613,14 +783,11 @@ function matchMasterHeader(headerText){
   for(const [key, re] of MASTER_HEADER_PATTERNS) if(re.test(headerText)) return key;
   return null;
 }
-function masterCsvUrl(){
-  return `https://docs.google.com/spreadsheets/d/${MASTER_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${MASTER_GID}`;
-}
+let masterTabTitle = null; // resolved once via getSheetTitleByGid, then reused
 // The Master Sheet is one flat table (Month, Department, Manager, then the score/sub-metric
 // columns) plus a trailing "HOW TO USE THIS SHEET" instructions block — rows with no Manager
 // value (the instructions) are skipped automatically.
-function parseMasterCSV(csvText){
-  const rows = parseCSV(csvText);
+function parseMasterRows(rows){
   if(!rows.length) return [];
   const colMap = {};
   rows[0].forEach((cell,i) => { const k = matchMasterHeader((cell||'').trim()); if(k && colMap[k]===undefined) colMap[k]=i; });
@@ -657,10 +824,13 @@ function parseMasterCSV(csvText){
   return out;
 }
 async function fetchMasterFromSheet(){
-  const res = await fetch(masterCsvUrl(), { cache: 'no-store' });
-  if(!res.ok) throw new Error('HTTP ' + res.status);
-  const text = await res.text();
-  const rows = parseMasterCSV(text);
+  if(!masterTabTitle){
+    masterTabTitle = await getSheetTitleByGid(MASTER_SHEET_ID, MASTER_GID);
+    if(!masterTabTitle) throw new Error('Could not locate the Master Sheet tab for gid ' + MASTER_GID);
+  }
+  const range = encodeURIComponent(sheetRange(masterTabTitle));
+  const data = await apiFetch(`https://sheets.googleapis.com/v4/spreadsheets/${MASTER_SHEET_ID}/values/${range}?valueRenderOption=FORMATTED_VALUE`);
+  const rows = parseMasterRows(data.values || []);
   if(!rows.length) throw new Error('No master rows parsed');
   return rows;
 }
@@ -739,9 +909,9 @@ async function refreshAllFromSheet(showAlertOnFail){
   dataSource.status = anySuccess && !anyFail ? 'live' : anySuccess ? 'partial' : 'error';
   dataSource.lastFetch = anySuccess ? new Date() : dataSource.lastFetch;
   if(dataSource.status === 'error' && showAlertOnFail){
-    alert('Could not reach the Sales Data Sheet. Make sure "Anyone with the link" (Viewer) access is turned on, then try Refresh again. Showing the last saved data for now.');
+    alert('Could not reach the Sales Data Sheet. If your account was only just added as a Viewer, try signing out and back in — otherwise try Refresh again shortly. Showing the last saved data for now.');
   } else if(!masterOk && showAlertOnFail){
-    alert('Could not reach the Manager KRA Master Sheet. Make sure "Anyone with the link" (Viewer) access is turned on for it too. Leadership/Reporting/sub-metrics are showing the last saved snapshot.');
+    alert('Could not reach the Manager KRA Master Sheet. Make sure your Google account has Viewer access to it too. Leadership/Reporting/sub-metrics are showing the last saved snapshot.');
   }
   renderDataStatus();
   if(currentView === 'month') renderMonthView(currentMonth); else renderCompareView();
@@ -1327,12 +1497,18 @@ function renderMonthTabs(){
 }
 
 // ---------- INIT ----------
-document.getElementById('gen-date').textContent = new Date().toLocaleDateString('en-IN', {year:'numeric', month:'long', day:'numeric'});
-renderKraReference();
-renderMonthTabs();
-renderDataStatus();
-renderMonthView(currentMonth);
-refreshAllFromSheet(false); // kick off a live pull in the background; falls back silently to the snapshot above if it fails
+// Everything that used to run immediately on page load now only runs once Google sign-in has
+// succeeded AND the signed-in account has been confirmed to have Viewer access to the Sales
+// Data Sheet (see runAccessCheck/enterApp above) — until then the page shows only #auth-gate.
+function boot(){
+  document.getElementById('gen-date').textContent = new Date().toLocaleDateString('en-IN', {year:'numeric', month:'long', day:'numeric'});
+  renderKraReference();
+  renderMonthTabs();
+  renderDataStatus();
+  renderMonthView(currentMonth);
+  refreshAllFromSheet(false); // kick off a live pull in the background; falls back silently to the snapshot above if it fails
+}
+waitForGoogleIdentity(initGoogleAuth);
 </script>
 </body>
 </html>
