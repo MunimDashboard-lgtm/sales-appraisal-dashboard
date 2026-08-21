@@ -268,6 +268,15 @@
 
   <section id="compare-view" hidden>
     <div class="card compare-card">
+      <h3>Comparison period</h3>
+      <div class="card-sub">Applies to every chart and table below. Defaults to the latest quarter (3 months) in scope — widen it for a longer appraisal period.</div>
+      <div class="range-picker">
+        <label>From <select id="range-from" onchange="onRangeChange()"></select></label>
+        <label>To <select id="range-to" onchange="onRangeChange()"></select></label>
+      </div>
+    </div>
+
+    <div class="card compare-card" id="trend-card">
       <h3>% of Achievement — July vs. August 2026</h3>
       <div class="card-sub">Only two months are in scope, so this shows a direct month-over-month read rather than a full trendline</div>
       <div class="trend-chart" id="trend-chart"></div>
@@ -277,18 +286,14 @@
       </div>
     </div>
 
-    <div class="card">
-      <h3>Manager-wise data — both months</h3>
+    <div class="card compare-card">
+      <h3>Manager-wise data</h3>
       <div id="compare-table-wrap"></div>
     </div>
 
-    <div class="card">
+    <div class="card compare-card">
       <h3>Average Appraisal Score by Manager</h3>
-      <div class="card-sub" id="avg-score-sub">Pick a custom month range for appraisal — the average is each manager's overall weighted Final Score (the same one shown on their card) across the selected months.</div>
-      <div class="range-picker">
-        <label>From <select id="range-from" onchange="onRangeChange()"></select></label>
-        <label>To <select id="range-to" onchange="onRangeChange()"></select></label>
-      </div>
+      <div class="card-sub" id="avg-score-sub">The average is each manager's overall weighted Final Score (the same one shown on their card) across the selected months — for appraisal, rank managers by this.</div>
       <div id="avg-score-chart"></div>
       <div id="avg-score-table-wrap"></div>
     </div>
@@ -1119,12 +1124,59 @@ function renderMonthView(monthKey){
   renderManagerCards(monthKey);
 }
 
-// Works over however many months are registered in MONTH_TABS (not just two) — a new
-// month tab automatically gets its own bar/column here once it has data.
+// ---------- CUSTOM-RANGE FILTER (shared by every chart/table in the Comparison tab) ----------
+let rangeFrom = null, rangeTo = null; // monthKeys picked in the "From"/"To" selectors below
+
+// Fills the From/To dropdowns from whatever's currently in MONTH_TABS. The very first time
+// this runs (rangeFrom/rangeTo still null), it defaults to the latest quarter — the last 3
+// months in scope — rather than the entire history; after that, it just preserves whatever
+// range the user picked, only resetting a side if it points at a month that no longer exists.
+function populateRangeSelectors(){
+  const fromSel = document.getElementById('range-from');
+  const toSel = document.getElementById('range-to');
+  if(!fromSel || !toSel || !MONTH_TABS.length) return;
+  const keys = MONTH_TABS.map(t => t.key);
+  if(rangeTo === null || !keys.includes(rangeTo)) rangeTo = keys[keys.length - 1];
+  if(rangeFrom === null || !keys.includes(rangeFrom)){
+    const toIdx = keys.indexOf(rangeTo);
+    rangeFrom = keys[Math.max(0, toIdx - 2)]; // latest quarter = this month + 2 prior
+  }
+  const opts = MONTH_TABS.map(t => `<option value="${t.key}">${t.label}</option>`).join('');
+  fromSel.innerHTML = opts;
+  toSel.innerHTML = opts;
+  fromSel.value = rangeFrom;
+  toSel.value = rangeTo;
+}
+function onRangeChange(){
+  const fromSel = document.getElementById('range-from');
+  const toSel = document.getElementById('range-to');
+  rangeFrom = fromSel.value;
+  rangeTo = toSel.value;
+  const idxFrom = MONTH_TABS.findIndex(t => t.key === rangeFrom);
+  const idxTo = MONTH_TABS.findIndex(t => t.key === rangeTo);
+  if(idxFrom > idxTo){ // user picked a "From" later than "To" — swap so the range still makes sense
+    [rangeFrom, rangeTo] = [rangeTo, rangeFrom];
+  }
+  renderCompareView();
+}
+function tabsInRange(){
+  populateRangeSelectors();
+  const idxFrom = MONTH_TABS.findIndex(t => t.key === rangeFrom);
+  const idxTo = MONTH_TABS.findIndex(t => t.key === rangeTo);
+  if(idxFrom === -1 || idxTo === -1) return [];
+  return MONTH_TABS.slice(idxFrom, idxTo + 1).filter(t => MONTHS[t.key] && MONTHS[t.key].managers.length);
+}
+
+// Every chart/table here is driven by the same From→To range selected above — a new month
+// tab automatically gets its own bar/column once it has data and falls within that range.
 function renderCompareView(){
-  const tabs = MONTH_TABS.filter(t => MONTHS[t.key] && MONTHS[t.key].managers.length);
-  document.querySelector('#compare-view .compare-card h3').textContent = '% of Achievement — ' + tabs.map(t=>t.label).join(' vs. ');
-  document.querySelector('#compare-view .compare-card .card-sub').textContent = tabs.length <= 2
+  const tabs = tabsInRange();
+  document.querySelector('#trend-card h3').textContent = tabs.length
+    ? '% of Achievement — ' + tabs.map(t=>t.label).join(' vs. ')
+    : '% of Achievement';
+  document.querySelector('#trend-card .card-sub').textContent = !tabs.length
+    ? 'No months in the selected range have data yet'
+    : tabs.length <= 2
     ? (tabs.length === 1 ? 'Only 1 month is in scope so far' : 'Only ' + tabs.length + ' months are in scope, so this shows a direct month-over-month read rather than a full trendline')
     : tabs.length + ' months in scope';
 
@@ -1163,48 +1215,14 @@ function renderCompareView(){
       <tbody>${rows}</tbody>
     </table>`;
 
-  renderAvgScoreSection();
+  renderAvgScoreSection(tabs);
 }
 
-// ---------- CUSTOM-RANGE AVERAGE SCORE (for appraisal decisions) ----------
-let rangeFrom = null, rangeTo = null; // monthKeys picked in the "From"/"To" selectors below
-
-function populateRangeSelectors(){
-  const fromSel = document.getElementById('range-from');
-  const toSel = document.getElementById('range-to');
-  if(!fromSel || !toSel || !MONTH_TABS.length) return;
-  const keys = MONTH_TABS.map(t => t.key);
-  if(!rangeFrom || !keys.includes(rangeFrom)) rangeFrom = keys[0];
-  if(!rangeTo || !keys.includes(rangeTo)) rangeTo = keys[keys.length - 1];
-  const opts = MONTH_TABS.map(t => `<option value="${t.key}">${t.label}</option>`).join('');
-  fromSel.innerHTML = opts;
-  toSel.innerHTML = opts;
-  fromSel.value = rangeFrom;
-  toSel.value = rangeTo;
-}
-function onRangeChange(){
-  const fromSel = document.getElementById('range-from');
-  const toSel = document.getElementById('range-to');
-  rangeFrom = fromSel.value;
-  rangeTo = toSel.value;
-  const idxFrom = MONTH_TABS.findIndex(t => t.key === rangeFrom);
-  const idxTo = MONTH_TABS.findIndex(t => t.key === rangeTo);
-  if(idxFrom > idxTo){ // user picked a "From" later than "To" — swap so the range still makes sense
-    [rangeFrom, rangeTo] = [rangeTo, rangeFrom];
-    fromSel.value = rangeFrom; toSel.value = rangeTo;
-  }
-  renderAvgScoreSection();
-}
 // Each manager's average Final Score (the same weighted KRA score shown on their card) across
 // every month in the selected From→To range — sorted best-to-worst so it can be read straight
 // off as an appraisal ranking. Months where a manager has no card yet are simply excluded from
 // their average rather than counted as a zero.
-function renderAvgScoreSection(){
-  populateRangeSelectors();
-  const idxFrom = MONTH_TABS.findIndex(t => t.key === rangeFrom);
-  const idxTo = MONTH_TABS.findIndex(t => t.key === rangeTo);
-  const tabs = (idxFrom === -1 || idxTo === -1) ? [] : MONTH_TABS.slice(idxFrom, idxTo + 1).filter(t => MONTHS[t.key] && MONTHS[t.key].managers.length);
-
+function renderAvgScoreSection(tabs){
   const subEl = document.getElementById('avg-score-sub');
   if(subEl) subEl.textContent = tabs.length
     ? `Averaged across ${tabs.map(t => t.label).join(', ')} (${tabs.length} month${tabs.length > 1 ? 's' : ''}) — for appraisal, rank managers by this average.`
