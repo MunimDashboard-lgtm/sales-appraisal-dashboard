@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sales Manager Appraisal Dashboard — Munim</title>
+<style>
+  :root{ color-scheme: light; }
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; }
+  body.viz-root{
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --surface-1:      #fcfcfb;
+    --page-plane:     #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --grid:           #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --success-text:   #006300;
+
+    --series-1: #2a78d6; /* Aakash - blue */
+    --series-2: #eb6834; /* Pritam - orange */
+    --series-3: #1baf7a; /* Harish - aqua */
+    --series-4: #eda100; /* Tukaram - yellow */
+
+    --seq-100:#cde2fb; --seq-250:#86b6ef; --seq-450:#2a78d6; --seq-600:#184f95;
+
+    --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+
+    background: var(--page-plane);
+    color: var(--text-primary);
+  }
+  body.viz-root[data-theme="dark"]{
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --page-plane:     #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --grid:           #2c2c2a;
+    --baseline:       #383835;
+    --border:         rgba(255,255,255,0.10);
+    --success-text:   #0ca30c;
+
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+  }
+
+  .page{ max-width: 1200px; margin: 0 auto; padding: 28px 24px 80px; }
+
+  header.topbar{ display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:20px; }
+  header.topbar h1{ font-size: 22px; margin:0 0 4px; letter-spacing:-0.01em; }
+  header.topbar .sub{ color:var(--text-secondary); font-size:13.5px; max-width:640px; line-height:1.5; }
+  .top-actions{ display:flex; gap:8px; align-items:center; flex-shrink:0; }
+  .icon-btn{
+    border:1px solid var(--border); background:var(--surface-1); color:var(--text-secondary);
+    border-radius:8px; padding:7px 12px; font-size:12.5px; cursor:pointer; font-family:inherit;
+  }
+  .icon-btn:hover{ color:var(--text-primary); }
+
+  .meta-row{ display:flex; gap:18px; flex-wrap:wrap; color:var(--text-muted); font-size:12px; margin-bottom:22px; }
+  .meta-row span b{ color:var(--text-secondary); font-weight:600; }
+
+  .assumption-banner{
+    background: var(--surface-1); border:1px solid var(--border); border-left:3px solid var(--series-1);
+    border-radius:10px; padding:12px 16px; margin-bottom:22px; font-size:12.5px; color:var(--text-secondary); line-height:1.6;
+  }
+  .assumption-banner b{ color:var(--text-primary); }
+
+  nav.tabs{ display:flex; gap:6px; margin-bottom:20px; border-bottom:1px solid var(--grid); flex-wrap:wrap; }
+  nav.tabs button{
+    font-family:inherit; background:none; border:none; padding:10px 16px; font-size:13.5px; font-weight:600;
+    color:var(--text-muted); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px;
+  }
+  nav.tabs button.active{ color: var(--series-1); border-bottom-color: var(--series-1); }
+  body[data-theme="dark"] nav.tabs button.active{ color: var(--series-1); }
+
+  .kpi-row{ display:grid; grid-template-columns: repeat(6, 1fr); gap:12px; margin-bottom:22px; }
+  @media (max-width: 980px){ .kpi-row{ grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 620px){ .kpi-row{ grid-template-columns: repeat(2, 1fr); } }
+  .kpi{
+    background:var(--surface-1); border:1px solid var(--border); border-radius:12px; padding:14px 16px;
+  }
+  .kpi .label{ font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:6px; }
+  .kpi .value{ font-size:22px; font-weight:700; letter-spacing:-0.01em; }
+  .kpi .delta{ font-size:11.5px; margin-top:4px; font-weight:600; }
+  .kpi .delta.good{ color: var(--success-text); }
+  .kpi .delta.bad{ color: var(--critical); }
+  .kpi .delta.flat{ color: var(--text-muted); }
+
+  .charts-row{ display:grid; grid-template-columns: 1.3fr 1fr; gap:16px; margin-bottom:22px; }
+  @media (max-width: 900px){ .charts-row{ grid-template-columns: 1fr; } }
+
+  .card{ background:var(--surface-1); border:1px solid var(--border); border-radius:12px; padding:18px 20px; }
+  .card h3{ font-size:14px; margin:0 0 2px; }
+  .card .card-sub{ font-size:12px; color:var(--text-muted); margin-bottom:14px; }
+
+  .legend{ display:flex; gap:14px; flex-wrap:wrap; margin-top:10px; font-size:12px; color:var(--text-secondary); }
+  .legend .lg-item{ display:flex; align-items:center; gap:6px; }
+  .legend .swatch{ width:10px; height:10px; border-radius:3px; display:inline-block; }
+  .legend .swatch.outline{ background:none; border:2px solid var(--text-muted); }
+
+  .bar-row{ display:flex; align-items:center; gap:10px; margin: 10px 0; }
+  .bar-row .bname{ width:74px; font-size:12.5px; color:var(--text-secondary); flex-shrink:0; }
+  .bar-track{ position:relative; flex:1; height:22px; background:var(--grid); border-radius:5px; overflow:visible; }
+  .bar-fill{ position:absolute; top:0; left:0; height:100%; border-radius:5px; min-width:4px; }
+  .bar-target-tick{ position:absolute; top:-4px; bottom:-4px; width:2px; background:var(--text-primary); opacity:0.55; }
+  .bar-val{ font-size:11.5px; color:var(--text-secondary); width:118px; text-align:right; flex-shrink:0; font-variant-numeric: tabular-nums; }
+
+  .pct-bar-row{ display:flex; align-items:center; gap:10px; margin:10px 0; }
+  .pct-bar-row .bname{ width:74px; font-size:12.5px; color:var(--text-secondary); flex-shrink:0; }
+  .pct-track{ position:relative; flex:1; height:16px; background:var(--grid); border-radius:5px; }
+  .pct-fill{ position:absolute; top:0; left:0; height:100%; border-radius:5px; min-width:4px; }
+  .pct-label{ width:54px; font-size:12px; font-weight:700; text-align:right; flex-shrink:0; font-variant-numeric: tabular-nums; }
+
+  .tooltip{
+    position:fixed; pointer-events:none; background:var(--text-primary); color:var(--surface-1);
+    font-size:11.5px; padding:6px 9px; border-radius:6px; z-index:50; opacity:0; transform:translate(-50%,-8px);
+    transition:opacity .1s ease; white-space:nowrap; line-height:1.5;
+  }
+  [data-theme="dark"] .tooltip{ background:#f2f2ef; color:#0d0d0d; }
+
+  .manager-grid{ display:grid; grid-template-columns: repeat(2, 1fr); gap:16px; margin-bottom:24px; }
+  @media (max-width: 900px){ .manager-grid{ grid-template-columns: 1fr; } }
+
+  .mgr-card{ background:var(--surface-1); border:1px solid var(--border); border-radius:14px; padding:18px 20px; }
+  .mgr-head{ display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+  .avatar{ width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; font-size:15px; flex-shrink:0; }
+  .mgr-name{ font-size:15.5px; font-weight:700; }
+  .mgr-loc{ font-size:12px; color:var(--text-muted); }
+  .status-pill{ margin-left:auto; font-size:11px; font-weight:700; padding:4px 10px; border-radius:20px; display:flex; align-items:center; gap:5px; white-space:nowrap; }
+  .status-pill .dot{ width:7px; height:7px; border-radius:50%; }
+
+  .mgr-stats{ display:grid; grid-template-columns: repeat(4,1fr); gap:8px; margin-bottom:10px; }
+  .mgr-stats .cell{ background:var(--page-plane); border:1px solid var(--border); border-radius:8px; padding:8px 10px; }
+  [data-theme="dark"] .mgr-stats .cell{ background:#141413; }
+  .mgr-stats .cell .k{ font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.02em; }
+  .mgr-stats .cell .v{ font-size:14px; font-weight:700; margin-top:2px; font-variant-numeric: tabular-nums; }
+
+  details.edit-panel{ margin-bottom:14px; }
+  details.edit-panel summary{ cursor:pointer; font-size:12px; font-weight:600; color:var(--series-1); list-style:none; }
+  details.edit-panel summary::-webkit-details-marker{ display:none; }
+  .edit-grid{ display:grid; grid-template-columns: repeat(2, 1fr); gap:8px; margin-top:10px; padding:12px; background:var(--page-plane); border:1px dashed var(--border); border-radius:10px; }
+  [data-theme="dark"] .edit-grid{ background:#141413; }
+  .edit-grid label{ display:flex; flex-direction:column; gap:3px; font-size:10.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.02em; }
+  .edit-grid input{
+    font-family:inherit; font-size:13px; padding:6px 8px; border-radius:6px; border:1px solid var(--border);
+    background:var(--surface-1); color:var(--text-primary); font-variant-numeric: tabular-nums;
+  }
+  .edit-actions{ grid-column: 1 / -1; display:flex; justify-content:flex-end; }
+  .reset-link{ background:none; border:none; font-family:inherit; font-size:11px; color:var(--text-muted); text-decoration:underline; cursor:pointer; padding:0; }
+  .reset-link:hover{ color:var(--critical); }
+
+  .kra-table{ width:100%; border-collapse:collapse; font-size:12px; }
+  .kra-table th{ text-align:left; font-size:10.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.02em; font-weight:600; padding:6px 4px; border-bottom:1px solid var(--grid); }
+  .kra-table td{ padding:7px 4px; border-bottom:1px solid var(--grid); color:var(--text-secondary); vertical-align:middle; }
+  .kra-table tr:last-child td{ border-bottom:none; }
+  .kra-table .kw{ color:var(--text-primary); font-weight:600; }
+  .kra-table .num{ font-variant-numeric: tabular-nums; text-align:right; }
+  .manual-input{
+    width:44px; padding:3px 5px; border-radius:6px; border:1px dashed var(--text-muted); background:var(--page-plane);
+    color:var(--text-primary); font-size:12px; font-family:inherit; text-align:center;
+  }
+  [data-theme="dark"] .manual-input{ background:#141413; }
+  .manual-input::placeholder{ color: var(--text-muted); }
+  .pending-tag{ font-size:9.5px; color:var(--warning); font-weight:700; }
+
+  .final-score-row{ display:flex; align-items:center; justify-content:space-between; margin-top:12px; padding-top:12px; border-top:1px solid var(--grid); }
+  .final-score-row .fs-label{ font-size:12.5px; color:var(--text-secondary); }
+  .final-score-row .fs-value{ font-size:24px; font-weight:800; font-variant-numeric: tabular-nums; }
+  .final-score-row .fs-note{ font-size:10.5px; color:var(--text-muted); margin-top:2px; }
+
+  .compare-card{ margin-bottom:24px; }
+  .trend-chart{ display:flex; align-items:flex-end; gap:26px; height:220px; padding:10px 6px 0; }
+  .trend-group{ display:flex; flex-direction:column; align-items:center; flex:1; height:100%; justify-content:flex-end; }
+  .trend-bars{ display:flex; gap:6px; align-items:flex-end; height:180px; }
+  .trend-bar{ width:26px; border-radius:4px 4px 0 0; position:relative; }
+  .trend-bar .tval{ position:absolute; top:-18px; left:50%; transform:translateX(-50%); font-size:10.5px; font-weight:700; color:var(--text-secondary); white-space:nowrap; }
+  .trend-name{ margin-top:8px; font-size:12px; color:var(--text-secondary); font-weight:600; }
+
+  table.data-table{ width:100%; border-collapse:collapse; font-size:12.5px; margin-top:10px; }
+  table.data-table th{ text-align:left; padding:8px 10px; background:var(--page-plane); color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:0.02em; border-bottom:1px solid var(--grid); position:sticky; top:0; }
+  table.data-table td{ padding:8px 10px; border-bottom:1px solid var(--grid); font-variant-numeric: tabular-nums; }
+  table.data-table td.name-cell{ font-variant-numeric: normal; font-weight:600; color:var(--text-primary); }
+
+  details.table-toggle{ margin-top:14px; }
+  details.table-toggle summary{ cursor:pointer; font-size:12px; color:var(--series-1); font-weight:600; }
+
+  .kra-ref-list{ display:flex; flex-direction:column; gap:10px; margin-top:6px; }
+  .kra-ref-row{ display:flex; align-items:center; gap:10px; }
+  .kra-ref-row .name{ width:280px; font-size:12.5px; color:var(--text-secondary); flex-shrink:0; }
+  @media (max-width: 700px){ .kra-ref-row .name{ width:150px; font-size:11.5px; } }
+  .kra-ref-row .track{ flex:1; height:14px; background:var(--grid); border-radius:4px; position:relative; }
+  .kra-ref-row .fill{ position:absolute; left:0; top:0; height:100%; border-radius:4px; background:var(--seq-450); }
+  .kra-ref-row .wt{ width:38px; text-align:right; font-weight:700; font-size:12.5px; flex-shrink:0; }
+  .kra-ref-row.manual .fill{ background: repeating-linear-gradient(45deg, var(--text-muted) 0 3px, transparent 3px 6px); opacity:0.6; }
+
+  footer.page-footer{ margin-top:36px; padding-top:16px; border-top:1px solid var(--grid); font-size:11.5px; color:var(--text-muted); line-height:1.7; }
+  footer.page-footer b{ color: var(--text-secondary); }
+
+  section{ margin-bottom:8px; }
+  .section-title{ font-size:16px; font-weight:700; margin: 30px 0 4px; }
+  .section-sub{ font-size:12.5px; color:var(--text-muted); margin-bottom:16px; }
+</style>
+</head>
+<body class="viz-root">
+<div class="page">
+
+  <header class="topbar">
+    <div>
+      <h1>Sales Manager Appraisal Dashboard</h1>
+      <div class="sub">FST Sales Team — KRA-weighted performance for Aakash, Pritam, Harish &amp; Tukaram, built from the Sales Data Sheet, the Manager KRA Master Sheet and the Sales Manager KRA &amp; Weightage Structure. The same 60/15/10/5/5/5 framework can score managers from any department once they're added to the Master Sheet.</div>
+    </div>
+    <div class="top-actions">
+      <button class="icon-btn" onclick="manualRefresh()">🔄 Refresh from Sheet</button>
+      <button class="icon-btn" onclick="resetAllData()">↺ Reset all data</button>
+      <button class="icon-btn" id="theme-toggle" onclick="toggleTheme()">🌙 Dark mode</button>
+    </div>
+  </header>
+
+  <div class="meta-row">
+    <span id="data-status">⚪ Loading…</span>
+    <span>Source: <b>FST SALES SUMMARY 25-26 Munim</b> + <b>Manager KRA Master Sheet</b> (Google Sheets)</span>
+    <span>Framework: <b>Sales Manager KRA &amp; Weightage Structure</b> (generic 60/15/10/5/5/5)</span>
+    <span>Generated: <b id="gen-date"></b></span>
+  </div>
+
+  <div class="assumption-banner">
+    <b>How to read this:</b> Four KRAs are calculated automatically from the sales sheet — <b>Sales Achievement (60%)</b>, <b>Conversion &amp; Productivity (15%)</b>, <b>Team Expansion (10%)</b> and <b>Attrition &amp; Retention (5%)</b>. The remaining two — <b>Leadership (5%)</b> and <b>Reporting Discipline (5%)</b> — are qualitative. <b>Manager KRA Master Sheet:</b> Leadership and Reporting Discipline scores (and optional sub-metrics — conversion-funnel %, headcount, avoidable attrition) are pulled automatically from a second Google Sheet, the "Manager KRA Master Sheet" — fill scores in there and they show up here pre-filled (still editable per session). That same sheet is where you add managers from other departments: any manager/month row you add there appears as its own card here, scored on Leadership/Reporting/Attrition immediately and on Sales/Productivity/Expansion once you give them Target &amp; Achieved figures via "✏️ Edit raw data" (until then those three KRAs show "N/A" and the score is reweighted over what does apply). <b>Live data:</b> this page pulls Target/Achieved/BDE/Cost from the Sales Data Sheet and Leadership/Reporting/sub-metrics from the Master Sheet each time it's opened — <b>both sheets need "Anyone with the link" (Viewer) access turned on</b> for this to work from a browser with no server in between. Click "🔄 Refresh from Sheet" any time to re-pull either. Adding a whole new month tab (e.g. September) to the Sales Data Sheet still needs its tab ID registered once — ask me, or add it yourself, see the code comment near <code>MONTH_TABS</code>; the Master Sheet needs no such step, just add rows with that month's label. <b>Everything here is also editable:</b> open "✏️ Edit raw data" on any manager card to correct a figure by hand — the % achieved, ROI, KRA scores, charts and totals all recalculate instantly. <b>Note:</b> hand-edits and any Leadership/Reporting score you change here (overriding the Master Sheet) only last for this browser tab/session — a "🔄 Refresh" or closing the tab discards them, so make lasting changes in the Master Sheet itself. Use "↺ Reset all data" to discard edits and go back to the last fetched (or saved) figures.
+  </div>
+
+  <nav class="tabs" id="month-tabs"></nav>
+
+  <section id="month-view">
+    <div class="kpi-row" id="kpi-row"></div>
+
+    <div class="charts-row">
+      <div class="card">
+        <h3>Target vs. Achieved Revenue</h3>
+        <div class="card-sub">Filled bar = achieved revenue, colored by achievement status · dark tick = target</div>
+        <div id="chart-target-achieved"></div>
+        <div class="legend">
+          <div class="lg-item"><span class="swatch" style="background:var(--good)"></span> ≥80% of target</div>
+          <div class="lg-item"><span class="swatch" style="background:var(--warning)"></span> 50–79%</div>
+          <div class="lg-item"><span class="swatch" style="background:var(--critical)"></span> &lt;50%</div>
+          <div class="lg-item"><span class="swatch outline"></span> target marker</div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>% of Achievement by Manager</h3>
+        <div class="card-sub">Achieved revenue as a share of target</div>
+        <div id="chart-pct-achv"></div>
+      </div>
+    </div>
+
+    <div class="manager-grid" id="manager-grid"></div>
+  </section>
+
+  <section id="compare-view" hidden>
+    <div class="card compare-card">
+      <h3>% of Achievement — July vs. August 2026</h3>
+      <div class="card-sub">Only two months are in scope, so this shows a direct month-over-month read rather than a full trendline</div>
+      <div class="trend-chart" id="trend-chart"></div>
+      <div class="legend">
+        <div class="lg-item"><span class="swatch" style="background:var(--series-1)"></span> July 2026</div>
+        <div class="lg-item"><span class="swatch" style="background:var(--series-2)"></span> August 2026</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Manager-wise data — both months</h3>
+      <div id="compare-table-wrap"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-title">KRA Weightage Framework (reference)</div>
+    <div class="section-sub">From the "Sales Manager KRA &amp; Weightage Structure" document — solid bars are auto-calculated in this dashboard, hatched bars need manual HR input</div>
+    <div class="card">
+      <div class="kra-ref-list" id="kra-ref-list"></div>
+    </div>
+  </section>
+
+  <footer class="page-footer">
+    <b>Methodology.</b> Sales Achievement score = % of target achieved (capped at 100). Productivity score = the manager's Average-Revenue-per-BDE relative to the best performer that month. Team Expansion score = whether BDE headcount held or grew vs. the prior month in scope (100 if maintained/grew). Attrition score = 100 − attrition % (from the Sales Data Sheet if tracked there, else from the Master Sheet's Avoidable Attrition column, else assumed 0). Leadership and Reporting Discipline come from the Manager KRA Master Sheet (1–5 scale), editable per session from any manager card. A manager with no Target/Achieved on file yet (e.g. a newly added other-department manager) shows Sales/Productivity/Expansion as N/A and their Final Score is reweighted over Attrition + Leadership + Reporting only, until Target/Achieved figures are added.<br>
+    <b>Live fetch, the Master Sheet &amp; known data gaps.</b> On load (and on "Refresh from Sheet"), this page reads the Sales Data Sheet's registered tabs — see <code>MONTH_TABS</code> and <code>SHEET_ID</code> near the top of the script — and the Manager KRA Master Sheet — see <code>MASTER_SHEET_ID</code>/<code>MASTER_GID</code> — via their published CSV feeds, and re-derives every field through the same formulas as the manual edit boxes. Both sheets need "Anyone with the link" (Viewer) access turned on for a browser to read them with no server in between. The Sales Data Sheet's column layout differs slightly month to month (e.g. July adds a "DRR" column, August adds "Attrition %" and "Avg. per subscription cost", some months split into 1st/2nd fortnight tables) — the parser matches columns by name and sums fortnight tables automatically, but a month with a genuinely new layout may need a quick check. The Master Sheet is matched by its "Month" column text against each tab's label in <code>MONTH_TABS</code>, so a month has to be registered there before its Master Sheet rows are picked up. Conversion-funnel metrics (lead→demo→payment) and headcount/attrition sub-metrics from the KRA document live in the Master Sheet and show as reference figures on each manager's card — they're not yet folded into the weighted score beyond feeding Attrition, since the funnel stages don't map to a single 0–100 KRA score on their own; extend <code>computeAllScores</code> if you want to add that. If either fetch fails (e.g. link-sharing isn't turned on yet), the dashboard falls back to the last figures it successfully loaded.<br>
+    Built for internal appraisal use at Identixweb / Munim — for Amit Choudhary.
+  </footer>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// ---------- DATA ----------
+const MONTHS = {
+  jul: {
+    label: "July 2026",
+    managers: [
+      {name:"Aakash", department:"Sales", state:"Gujarat", city:"Ahmedabad", target:600000, achieved:287099, pctAchv:47.85, revNoGst:243304, noOfSale:16, bdes:5, avgPerBde:48661, salary:276234, otherCost:75000, totalCost:351234, roiPct:69.27, leftForRoi:107930, attritionPct:null},
+      {name:"Pritam", department:"Sales", state:"West Bengal", city:"Kolkata", target:960000, achieved:678485, pctAchv:70.68, revNoGst:574987, noOfSale:48, bdes:8, avgPerBde:71873, salary:402700, otherCost:120000, totalCost:522700, roiPct:110.00, leftForRoi:-52287, attritionPct:null},
+      {name:"Harish", department:"Sales", state:"Karnataka", city:"Bangalore", target:520000, achieved:575476, pctAchv:110.67, revNoGst:487692, noOfSale:43, bdes:6, avgPerBde:81282, salary:310828, otherCost:90000, totalCost:400828, roiPct:121.67, leftForRoi:-86864, attritionPct:null},
+      {name:"Tukaram", department:"Sales", state:"Maharashtra", city:"Pune", target:440000, achieved:289589, pctAchv:65.82, revNoGst:245414, noOfSale:27, bdes:4, avgPerBde:61354, salary:236397, otherCost:60000, totalCost:296397, roiPct:82.80, leftForRoi:50983, attritionPct:null}
+    ]
+  },
+  aug: {
+    label: "August 2026",
+    managers: [
+      {name:"Aakash", department:"Sales", state:"Gujarat", city:"Ahmedabad", target:765000, achieved:149889, pctAchv:19.59, revNoGst:127025, noOfSale:10, bdes:6, avgPerBde:21171, salary:276234, otherCost:75000, totalCost:351234, roiPct:36.17, leftForRoi:224209, attritionPct:0},
+      {name:"Pritam", department:"Sales", state:"West Bengal", city:"Kolkata", target:960000, achieved:202661, pctAchv:21.11, revNoGst:171747, noOfSale:17, bdes:8, avgPerBde:21468, salary:402700, otherCost:120000, totalCost:522700, roiPct:32.86, leftForRoi:350953, attritionPct:0},
+      {name:"Harish", department:"Sales", state:"Karnataka", city:"Bangalore", target:750000, achieved:314164, pctAchv:41.89, revNoGst:266241, noOfSale:27, bdes:7, avgPerBde:38034, salary:310828, otherCost:105000, totalCost:415828, roiPct:64.03, leftForRoi:149587, attritionPct:0},
+      {name:"Tukaram", department:"Sales", state:"Maharashtra", city:"Pune", target:480000, achieved:122053, pctAchv:25.43, revNoGst:103435, noOfSale:12, bdes:4, avgPerBde:25859, salary:236397, otherCost:60000, totalCost:296397, roiPct:34.90, leftForRoi:192962, attritionPct:0}
+    ]
+  }
+};
+// Each month's "prior BDE count" reference is the month before it in MONTH_TABS order
+// (the earliest registered month has no prior, so its Team Expansion KRA is a baseline 100).
+function recomputePrevBdesChain(){
+  MONTH_TABS.forEach((tab, i) => {
+    const month = MONTHS[tab.key];
+    if(!month) return;
+    if(i === 0){ month.prevBdes = null; return; }
+    const prevMonth = MONTHS[MONTH_TABS[i-1].key];
+    month.prevBdes = {};
+    if(prevMonth) prevMonth.managers.forEach(m => month.prevBdes[m.name] = m.bdes);
+  });
+}
+
+const GST_FACTOR = 1.18; // achieved (incl. GST) -> revenue w/o GST
+
+// Recompute every derived field on a manager from its raw editable inputs.
+function recomputeManager(m){
+  m.revNoGst = m.achieved / GST_FACTOR;
+  m.pctAchv = m.target > 0 ? (m.achieved / m.target) * 100 : 0;
+  m.avgPerBde = m.bdes > 0 ? m.revNoGst / m.bdes : 0;
+  m.totalCost = m.salary + m.otherCost;
+  m.roiPct = m.totalCost > 0 ? (m.revNoGst / m.totalCost) * 100 : 0;
+  m.leftForRoi = m.totalCost - m.revNoGst;
+}
+// Normalize the hardcoded starting figures through the same formulas used on edit,
+// so manual edits and resets are always self-consistent with the displayed numbers.
+Object.values(MONTHS).forEach(month => month.managers.forEach(recomputeManager));
+
+// Deep copy of the original (recomputed) sheet figures, kept so edits can be reset.
+const ORIGINAL_MONTHS = JSON.parse(JSON.stringify(MONTHS));
+
+// ---------- LIVE GOOGLE SHEET FETCH ----------
+// The Sheet must have "Anyone with the link" (Viewer) access for this to work from a
+// browser with no server in between. To register a brand-new month tab (e.g. September):
+// open that tab in the Sheet, copy the number after "gid=" in the URL, and add one line
+// below — everything else (parsing, scoring, charts) picks it up automatically.
+const SHEET_ID = '1r9oZ1bgSzvS9zHR2oq6zGNgq1-Tf1lzNi4IfVImAecY';
+const MONTH_TABS = [
+  { key: 'jul', gid: '1038648938', label: 'July 2026' },
+  { key: 'aug', gid: '638521177',  label: 'August 2026' }
+  // { key: 'sep', gid: 'PASTE_GID_HERE', label: 'September 2026' },
+];
+// Second sheet: the "Manager KRA Master Sheet" — where HR/founder fill in Leadership &
+// Reporting Discipline scores (and optional sub-metrics), and where any other department's
+// managers get added. One tab, no per-month tab IDs to register — new months/managers are
+// just new rows, matched here by the "Month" column text against MONTH_TABS' labels.
+const MASTER_SHEET_ID = '11zYFyCdF9-3oPd_7cRouTdWW_sSM1IpV3Wih7tIv4As';
+const MASTER_GID = '367533271';
+let MASTER_DATA = {}; // key "monthKey|Department|Manager" -> master-sheet row
+let dataSource = { status: 'cached', lastFetch: null }; // 'cached' | 'live' | 'partial' | 'error'
+let masterSource = { status: 'cached', lastFetch: null };
+recomputePrevBdesChain();
+
+function csvUrl(gid){
+  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}`;
+}
+
+// Minimal RFC4180-ish CSV parser (handles quoted fields with embedded commas/newlines).
+function parseCSV(text){
+  const rows = []; let row = []; let field = ''; let inQuotes = false;
+  for(let i = 0; i < text.length; i++){
+    const c = text[i];
+    if(inQuotes){
+      if(c === '"'){
+        if(text[i+1] === '"'){ field += '"'; i++; } else { inQuotes = false; }
+      } else field += c;
+    } else {
+      if(c === '"') inQuotes = true;
+      else if(c === ','){ row.push(field); field = ''; }
+      else if(c === '\n' || c === '\r'){
+        if(c === '\r' && text[i+1] === '\n') i++;
+        row.push(field); field = ''; rows.push(row); row = [];
+      } else field += c;
+    }
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(cell => cell !== ''));
+}
+
+// Fuzzy header -> canonical field map. Matches whichever wording that month's sheet used.
+const HEADER_PATTERNS = [
+  ['name', /^name$/i],
+  ['state', /^state$/i],
+  ['city', /^city$/i],
+  ['target', /target/i],
+  ['achieved', /^achieved/i],
+  ['revNoGst', /w\/?o\s*gst|without gst/i],
+  ['noOfSale', /no\.?\s*of\s*sale/i],
+  ['bdes', /no\.?\s*of\s*bdes?/i],
+  ['salary', /^salary/i],
+  ['otherCost', /email|incentive/i],
+  ['totalCost', /total cost/i],
+  ['roiPct', /roi/i],
+  ['leftForRoi', /left for roi/i],
+  ['attritionPct', /attrition/i]
+];
+function matchHeader(headerText){
+  for(const [key, re] of HEADER_PATTERNS) if(re.test(headerText)) return key;
+  return null;
+}
+
+// Some months' tabs have blank header cells past Name/State/City (the label text was
+// never filled in, or got cleared) even though the data itself follows this sheet's usual
+// column order. When header-name matching finds NONE of the numeric fields, fall back to
+// that fixed order, anchored on the Name column — but only commit to it if the guessed
+// Target/Achieved cells in the first data row actually look like numbers, so a sheet that
+// genuinely uses a different layout just falls through to the "no manager rows" path
+// instead of silently parsing to zeros.
+function applyPositionalFallback(colMap, rows, dataRowIdx){
+  if(colMap.name === undefined) return colMap;
+  if(colMap.target !== undefined || colMap.achieved !== undefined) return colMap; // partially labeled — don't guess
+  const base = colMap.name;
+  // Deliberately excludes attritionPct: that column was added to this sheet partway
+  // through the year, so its position isn't consistent across every month the way the
+  // core financial columns are — safer to leave it unmapped (falls back to the Master
+  // Sheet's Avoidable Attrition, then to "not tracked") than to guess and misread some
+  // unrelated column as an attrition percentage.
+  const OFFSETS = {target:3, achieved:4, revNoGst:6, noOfSale:7, bdes:8, salary:10, otherCost:11};
+  const guess = {...colMap};
+  Object.entries(OFFSETS).forEach(([key, off]) => { guess[key] = base + off; });
+  const looksNumeric = (v) => v !== undefined && v !== null && v !== '' && !isNaN(parseFloat(String(v).replace(/[₹,%\s]/g,'')));
+  const row = rows[dataRowIdx] || [];
+  if(looksNumeric(row[guess.target]) && looksNumeric(row[guess.achieved])) return guess;
+  return colMap; // guess didn't check out — leave unmapped rather than risk wrong numbers
+}
+
+// A month's tab may be one simple table, or split into "1st/2nd fortnight" sub-tables
+// (several months in this sheet are laid out that way) — this finds every table that
+// starts with a "Name" header cell and aggregates all of them by manager name.
+function parseMonthCSV(csvText){
+  const rows = parseCSV(csvText);
+  const managers = {}; // name -> accumulated raw fields
+  for(let r = 0; r < rows.length; r++){
+    const headerIdx = rows[r].findIndex(c => /^name$/i.test((c||'').trim()));
+    if(headerIdx === -1) continue;
+    let colMap = {};
+    rows[r].forEach((cell, i) => { const k = matchHeader((cell||'').trim()); if(k && colMap[k]===undefined) colMap[k] = i; });
+    if(colMap.name === undefined) continue;
+    colMap = applyPositionalFallback(colMap, rows, r + 1);
+    // Walk data rows until we hit the next header row, a "total" row, or run out.
+    for(let d = r + 1; d < rows.length; d++){
+      const nameCell = (rows[d][colMap.name] || '').trim();
+      if(!nameCell) break;
+      if(/^total$/i.test(nameCell)) continue;
+      if(/^name$/i.test(nameCell)) break; // next table's header
+      const num = (key) => {
+        if(colMap[key] === undefined) return null;
+        const raw = (rows[d][colMap[key]] || '').replace(/[₹,%\s]/g, '');
+        const v = parseFloat(raw);
+        return isNaN(v) ? null : v;
+      };
+      const acc = managers[nameCell] || {
+        name: nameCell,
+        state: (rows[d][colMap.state] || '').trim() || undefined,
+        city: (rows[d][colMap.city] || '').trim() || undefined,
+        target: 0, achieved: 0, noOfSale: 0, bdes: 0, salary: 0, otherCost: 0,
+        attritionSum: 0, attritionCount: 0
+      };
+      acc.target += num('target') || 0;
+      acc.achieved += num('achieved') || 0;
+      acc.noOfSale += num('noOfSale') || 0;
+      acc.bdes += num('bdes') || 0;
+      acc.salary += num('salary') || 0;
+      acc.otherCost += num('otherCost') || 0;
+      const attr = num('attritionPct');
+      if(attr !== null){ acc.attritionSum += attr; acc.attritionCount++; }
+      managers[nameCell] = acc;
+    }
+  }
+  return Object.values(managers).map(acc => {
+    const m = {
+      name: acc.name, department: 'Sales', state: acc.state || '—', city: acc.city || '—',
+      target: acc.target, achieved: acc.achieved, noOfSale: acc.noOfSale, bdes: acc.bdes,
+      salary: acc.salary, otherCost: acc.otherCost,
+      attritionPct: acc.attritionCount ? acc.attritionSum / acc.attritionCount : null
+    };
+    recomputeManager(m);
+    return m;
+  }).filter(m => m.target > 0 || m.achieved > 0);
+}
+
+async function fetchMonthFromSheet(tab){
+  const res = await fetch(csvUrl(tab.gid), { cache: 'no-store' });
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  const text = await res.text();
+  const managers = parseMonthCSV(text);
+  if(!managers.length) throw new Error('No manager rows parsed');
+  return managers;
+}
+
+// ---------- MASTER SHEET (Leadership / Reporting / sub-metrics / other departments) ----------
+const MASTER_HEADER_PATTERNS = [
+  ['month', /^month$/i],
+  ['department', /^department$/i],
+  ['manager', /^manager$/i],
+  ['leadership', /leadership/i],
+  ['reporting', /reporting/i],
+  ['leadToConnected', /lead.*connect/i],
+  ['connectedToInterested', /connect.*interest/i],
+  ['interestedToDemo', /interest.*demo/i],
+  ['demoToPayment', /demo.*payment/i],
+  ['requiredHC', /required.*headcount/i],
+  ['actualHC', /actual.*headcount/i],
+  ['avoidableAttrition', /attrition/i],
+  ['notes', /notes/i]
+];
+function matchMasterHeader(headerText){
+  for(const [key, re] of MASTER_HEADER_PATTERNS) if(re.test(headerText)) return key;
+  return null;
+}
+function masterCsvUrl(){
+  return `https://docs.google.com/spreadsheets/d/${MASTER_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${MASTER_GID}`;
+}
+// The Master Sheet is one flat table (Month, Department, Manager, then the score/sub-metric
+// columns) plus a trailing "HOW TO USE THIS SHEET" instructions block — rows with no Manager
+// value (the instructions) are skipped automatically.
+function parseMasterCSV(csvText){
+  const rows = parseCSV(csvText);
+  if(!rows.length) return [];
+  const colMap = {};
+  rows[0].forEach((cell,i) => { const k = matchMasterHeader((cell||'').trim()); if(k && colMap[k]===undefined) colMap[k]=i; });
+  if(colMap.month===undefined || colMap.manager===undefined) return [];
+  const num = (row, key) => {
+    if(colMap[key]===undefined) return null;
+    const raw = (row[colMap[key]]||'').replace(/[₹,%\s]/g,'');
+    if(raw==='') return null;
+    const v = parseFloat(raw);
+    return isNaN(v) ? null : v;
+  };
+  const out = [];
+  for(let r=1; r<rows.length; r++){
+    const row = rows[r];
+    const monthText = (row[colMap.month]||'').trim();
+    const managerText = (row[colMap.manager]||'').trim();
+    if(!monthText || !managerText) continue; // blank row or the instructions block
+    out.push({
+      month: monthText,
+      department: (row[colMap.department]||'').trim() || 'Sales',
+      manager: managerText,
+      leadership: num(row,'leadership'),
+      reporting: num(row,'reporting'),
+      leadToConnected: num(row,'leadToConnected'),
+      connectedToInterested: num(row,'connectedToInterested'),
+      interestedToDemo: num(row,'interestedToDemo'),
+      demoToPayment: num(row,'demoToPayment'),
+      requiredHC: num(row,'requiredHC'),
+      actualHC: num(row,'actualHC'),
+      avoidableAttrition: num(row,'avoidableAttrition'),
+      notes: colMap.notes!==undefined ? (row[colMap.notes]||'').trim() : ''
+    });
+  }
+  return out;
+}
+async function fetchMasterFromSheet(){
+  const res = await fetch(masterCsvUrl(), { cache: 'no-store' });
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  const text = await res.text();
+  const rows = parseMasterCSV(text);
+  if(!rows.length) throw new Error('No master rows parsed');
+  return rows;
+}
+function labelToMonthKey(label){
+  const tab = MONTH_TABS.find(t => t.label.trim().toLowerCase() === label.trim().toLowerCase());
+  return tab ? tab.key : null;
+}
+async function refreshMasterData(){
+  try{
+    const rows = await fetchMasterFromSheet();
+    const data = {};
+    rows.forEach(r => {
+      const mk = labelToMonthKey(r.month);
+      if(!mk) return; // month not registered in MONTH_TABS yet — ignore for now
+      data[mk+'|'+r.department+'|'+r.manager] = r;
+    });
+    MASTER_DATA = data;
+    masterSource.status = 'live';
+    masterSource.lastFetch = new Date();
+    return true;
+  } catch(err){
+    console.warn('Master sheet fetch failed', err);
+    masterSource.status = Object.keys(MASTER_DATA).length ? 'partial' : 'error';
+    return false;
+  }
+}
+// Tags every sales-sheet manager with its department + master-sheet sub-metrics, and injects
+// any other-department manager/month rows from the Master Sheet that don't already exist.
+function mergeMasterIntoMonths(){
+  MONTH_TABS.forEach(tab => {
+    const month = MONTHS[tab.key];
+    if(!month) return;
+    month.managers.forEach(m => {
+      if(!m.department) m.department = 'Sales';
+      const md = MASTER_DATA[tab.key+'|'+m.department+'|'+m.name];
+      m.subMetrics = md || null;
+    });
+    const existingKeys = new Set(month.managers.map(m => m.department+'|'+m.name));
+    Object.keys(MASTER_DATA).forEach(key => {
+      const [mk, dept, name] = key.split('|');
+      if(mk !== tab.key || dept === 'Sales' || existingKeys.has(dept+'|'+name)) return;
+      const md = MASTER_DATA[key];
+      const pseudo = {
+        name, department: dept, state:'—', city:'—',
+        target:0, achieved:0, noOfSale:0, bdes:0, salary:0, otherCost:0,
+        attritionPct: null, subMetrics: md
+      };
+      recomputeManager(pseudo);
+      month.managers.push(pseudo);
+      existingKeys.add(dept+'|'+name);
+    });
+  });
+}
+function hasRevenueData(m){ return m.target > 0 || m.achieved > 0; }
+
+async function refreshAllFromSheet(showAlertOnFail){
+  let anySuccess = false, anyFail = false;
+  for(const tab of MONTH_TABS){
+    try{
+      const managers = await fetchMonthFromSheet(tab);
+      if(!MONTHS[tab.key]) MONTHS[tab.key] = { label: tab.label, managers: [] };
+      MONTHS[tab.key].managers = managers;
+      if(!ORIGINAL_MONTHS[tab.key]) ORIGINAL_MONTHS[tab.key] = { label: tab.label };
+      ORIGINAL_MONTHS[tab.key].managers = JSON.parse(JSON.stringify(managers));
+      anySuccess = true;
+    } catch(err){
+      anyFail = true;
+      console.warn('Live fetch failed for', tab.label, err);
+    }
+  }
+  const masterOk = await refreshMasterData();
+  recomputePrevBdesChain();
+  mergeMasterIntoMonths();
+  renderMonthTabs();
+  dataSource.status = anySuccess && !anyFail ? 'live' : anySuccess ? 'partial' : 'error';
+  dataSource.lastFetch = anySuccess ? new Date() : dataSource.lastFetch;
+  if(dataSource.status === 'error' && showAlertOnFail){
+    alert('Could not reach the Sales Data Sheet. Make sure "Anyone with the link" (Viewer) access is turned on, then try Refresh again. Showing the last saved data for now.');
+  } else if(!masterOk && showAlertOnFail){
+    alert('Could not reach the Manager KRA Master Sheet. Make sure "Anyone with the link" (Viewer) access is turned on for it too. Leadership/Reporting/sub-metrics are showing the last saved snapshot.');
+  }
+  renderDataStatus();
+  if(currentView === 'month') renderMonthView(currentMonth); else renderCompareView();
+}
+
+function renderDataStatus(){
+  const el = document.getElementById('data-status');
+  if(!el) return;
+  const time = dataSource.lastFetch ? dataSource.lastFetch.toLocaleTimeString('en-IN') : null;
+  const masterBit = masterSource.status === 'live' ? ' · Master Sheet ✓'
+    : masterSource.status === 'partial' ? ' · Master Sheet: last saved'
+    : masterSource.status === 'error' ? ' · Master Sheet ✗ (check sharing)' : '';
+  if(dataSource.status === 'live') el.innerHTML = `🟢 Live from Google Sheet · fetched ${time}${masterBit}`;
+  else if(dataSource.status === 'partial') el.innerHTML = `🟡 Partly live (one month failed to fetch) · ${time}${masterBit}`;
+  else if(dataSource.status === 'error') el.innerHTML = `🔴 Could not reach the Sheet — showing last saved snapshot${masterBit}`;
+  else el.innerHTML = `⚪ Showing saved snapshot from Aug 21, 2026 · click Refresh to pull live data`;
+}
+
+function manualRefresh(){
+  if(Object.keys(manualScores).length && !confirm('Refresh will reload Target/Achieved/BDE/Cost figures from the Sheet but keep your Leadership/Reporting scores. Continue?')) return;
+  refreshAllFromSheet(true);
+}
+
+const KRA_DEF = [
+  {key:'sales', label:'Team Sales Achievement / Revenue', weight:60, manual:false},
+  {key:'productivity', label:'Team Conversion & Sales Productivity', weight:15, manual:false},
+  {key:'expansion', label:'Team Expansion & Capacity Building', weight:10, manual:false},
+  {key:'attrition', label:'Team Attrition & Retention', weight:5, manual:false},
+  {key:'leadership', label:'Team Handling, Leadership & Performance Mgmt', weight:5, manual:true},
+  {key:'reporting', label:'Reporting, Process & Management Discipline', weight:5, manual:true}
+];
+
+const COLORS = ['var(--series-1)','var(--series-2)','var(--series-3)','var(--series-4)'];
+const manualScores = {}; // { "jul|Aakash|leadership": 4, ... }
+const openEditPanels = new Set(); // tracks "monthKey|name" whose edit panel should stay expanded across re-renders
+
+function fmtINR(n){
+  if(n===null||n===undefined) return '—';
+  const sign = n<0 ? '-' : '';
+  n = Math.abs(Math.round(n));
+  return sign + '₹' + n.toLocaleString('en-IN');
+}
+function fmtNum(n){ return n===null||n===undefined ? '—' : Math.round(n).toLocaleString('en-IN'); }
+function statusColor(pct){
+  if(pct >= 80) return 'var(--good)';
+  if(pct >= 50) return 'var(--warning)';
+  return 'var(--critical)';
+}
+function statusLabel(pct){
+  if(pct >= 80) return 'On track';
+  if(pct >= 50) return 'Needs attention';
+  return 'Behind target';
+}
+
+// ---------- SCORES ----------
+function salesScore(m){ return Math.min(m.pctAchv, 100); }
+function productivityScore(m, monthData){
+  const maxAvg = Math.max(...monthData.managers.map(x=>x.avgPerBde));
+  return maxAvg > 0 ? (m.avgPerBde / maxAvg) * 100 : 0;
+}
+function expansionScore(m, monthKey, monthData){
+  if(!monthData.prevBdes) return 100; // baseline month, no prior data in scope
+  const prev = monthData.prevBdes[m.name];
+  if(prev === undefined || prev === 0) return 100;
+  return m.bdes >= prev ? 100 : (m.bdes/prev)*100;
+}
+function attritionScore(m){
+  let pct = m.attritionPct;
+  if((pct === null || pct === undefined) && m.subMetrics && m.subMetrics.avoidableAttrition !== null && m.subMetrics.avoidableAttrition !== undefined){
+    pct = m.subMetrics.avoidableAttrition; // fall back to the Master Sheet's tracked figure
+  }
+  if(pct === null || pct === undefined) return 100; // not tracked anywhere -> assume 0
+  return 100 - pct;
+}
+// Session hand-edits (manualScores) always win; otherwise fall back to whatever the
+// Master Sheet has for that manager/month, so Leadership/Reporting arrive pre-filled.
+function getManualScore(monthKey, name, key, department){
+  const k = monthKey+'|'+name+'|'+key;
+  if(manualScores[k] !== undefined) return manualScores[k];
+  const dept = department || 'Sales';
+  const md = MASTER_DATA[monthKey+'|'+dept+'|'+name];
+  if(md){
+    const v = key === 'leadership' ? md.leadership : key === 'reporting' ? md.reporting : null;
+    if(v !== null && v !== undefined) return v;
+  }
+  return null;
+}
+function setManualScore(monthKey, name, key, val){
+  const k = monthKey+'|'+name+'|'+key;
+  if(val === null || val === '' || isNaN(val)) delete manualScores[k];
+  else manualScores[k] = Math.max(1, Math.min(5, Number(val)));
+}
+// Managers with no revenue data yet (e.g. a just-added other-department manager, before
+// Target/Achieved are filled in) skip Sales/Productivity/Expansion entirely rather than
+// scoring them 0 — the weighted average is renormalized over whichever KRAs do apply.
+function computeAllScores(m, monthKey, monthData){
+  const revenue = hasRevenueData(m);
+  const scores = {
+    sales: revenue ? salesScore(m) : null,
+    productivity: revenue ? productivityScore(m, monthData) : null,
+    expansion: revenue ? expansionScore(m, monthKey, monthData) : null,
+    attrition: attritionScore(m),
+    leadership: getManualScore(monthKey, m.name, 'leadership', m.department),
+    reporting: getManualScore(monthKey, m.name, 'reporting', m.department)
+  };
+  let weighted = 0, pending = [], totalWeight = 0;
+  KRA_DEF.forEach(k => {
+    let s = scores[k.key];
+    if(s === null && !k.manual) return; // not applicable yet — excluded from weighting
+    if(k.manual){
+      if(s === null){ pending.push(k.label); s = 0; }
+      else s = s * 20; // 1-5 -> 0-100
+    }
+    weighted += (s * k.weight/100);
+    totalWeight += k.weight;
+  });
+  if(totalWeight > 0 && totalWeight < 100) weighted = weighted * (100/totalWeight);
+  return {scores, weighted, pending, hasRevenue: revenue};
+}
+
+// ---------- RENDER ----------
+let currentMonth = 'jul';
+let currentView = 'month';
+
+function renderKpis(monthKey){
+  const d = MONTHS[monthKey];
+  // These KPIs are revenue totals, so they only sum managers with actual sales data —
+  // an other-department manager added via the Master Sheet (target/achieved = 0 until
+  // filled in) shouldn't dilute the team's revenue picture.
+  const salesManagers = d.managers.filter(hasRevenueData);
+  const t = salesManagers.reduce((a,m)=>({
+    target:a.target+m.target, achieved:a.achieved+m.achieved, bdes:a.bdes+m.bdes,
+    totalCost:a.totalCost+m.totalCost, noOfSale:a.noOfSale+m.noOfSale
+  }), {target:0,achieved:0,bdes:0,totalCost:0,noOfSale:0});
+  const pct = (t.achieved/t.target*100);
+  const tabIdx = MONTH_TABS.findIndex(tb => tb.key === monthKey);
+  const prevTab = tabIdx > 0 ? MONTH_TABS[tabIdx-1] : null;
+  const other = prevTab && MONTHS[prevTab.key] ? MONTHS[prevTab.key] : null;
+  const ot = other ? other.managers.filter(hasRevenueData).reduce((a,m)=>({target:a.target+m.target, achieved:a.achieved+m.achieved}), {target:0,achieved:0}) : null;
+  const opct = ot ? (ot.achieved/ot.target*100) : null;
+  const delta = opct === null ? null : pct - opct;
+  const prevLabel = prevTab ? prevTab.label.split(' ')[0] : '';
+
+  const kpis = [
+    {label:'Team Target', value: fmtINR(t.target)},
+    {label:'Team Achieved', value: fmtINR(t.achieved)},
+    {label:'% of Achievement', value: pct.toFixed(1)+'%',
+      delta: delta===null? null : (delta>=0? '▲ '+delta.toFixed(1)+' pts vs '+prevLabel : '▼ '+Math.abs(delta).toFixed(1)+' pts vs '+prevLabel),
+      deltaClass: delta===null? '' : (delta>=0?'good':'bad')},
+    {label:'Total BDEs', value: t.bdes},
+    {label:'Total Sales', value: t.noOfSale},
+    {label:'Total Cost', value: fmtINR(t.totalCost)}
+  ];
+  document.getElementById('kpi-row').innerHTML = kpis.map(k => `
+    <div class="kpi">
+      <div class="label">${k.label}</div>
+      <div class="value">${k.value}</div>
+      ${k.delta ? `<div class="delta ${k.deltaClass}">${k.delta}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+function renderTargetAchievedChart(monthKey){
+  const d = MONTHS[monthKey];
+  const managers = d.managers.filter(hasRevenueData); // revenue chart — skip N/A managers
+  if(!managers.length){ document.getElementById('chart-target-achieved').innerHTML = '<div style="color:var(--text-muted);font-size:12.5px;padding:8px 0;">No revenue data for this month yet.</div>'; return; }
+  const maxVal = Math.max(...managers.map(m=>Math.max(m.target, m.achieved))) * 1.08;
+  const html = managers.map((m,i) => {
+    const fillPct = (m.achieved/maxVal*100).toFixed(2);
+    const tickPct = (m.target/maxVal*100).toFixed(2);
+    const color = statusColor(m.pctAchv);
+    return `
+      <div class="bar-row">
+        <div class="bname">${m.name}</div>
+        <div class="bar-track" data-tip="${m.name}: achieved ${fmtINR(m.achieved)} of ${fmtINR(m.target)} target (${m.pctAchv.toFixed(1)}%)">
+          <div class="bar-fill" style="width:${fillPct}%; background:${color};"></div>
+          <div class="bar-target-tick" style="left:${tickPct}%;"></div>
+        </div>
+        <div class="bar-val">${fmtINR(m.achieved)} / ${fmtINR(m.target)}</div>
+      </div>`;
+  }).join('');
+  document.getElementById('chart-target-achieved').innerHTML = html;
+  wireTooltips('#chart-target-achieved [data-tip]');
+}
+
+function renderPctAchvChart(monthKey){
+  const d = MONTHS[monthKey];
+  const managers = d.managers.filter(hasRevenueData);
+  if(!managers.length){ document.getElementById('chart-pct-achv').innerHTML = '<div style="color:var(--text-muted);font-size:12.5px;padding:8px 0;">No revenue data for this month yet.</div>'; return; }
+  const html = managers.map(m => {
+    const w = Math.min(m.pctAchv, 100);
+    const color = statusColor(m.pctAchv);
+    return `
+      <div class="pct-bar-row">
+        <div class="bname">${m.name}</div>
+        <div class="pct-track" data-tip="${m.name}: ${m.pctAchv.toFixed(1)}% of target — ${statusLabel(m.pctAchv)}">
+          <div class="pct-fill" style="width:${w}%; background:${color};"></div>
+        </div>
+        <div class="pct-label" style="color:${color}">${m.pctAchv.toFixed(1)}%</div>
+      </div>`;
+  }).join('');
+  document.getElementById('chart-pct-achv').innerHTML = html;
+  wireTooltips('#chart-pct-achv [data-tip]');
+}
+
+function renderSubMetrics(sm){
+  if(!sm) return '';
+  const fields = [
+    ['Lead→Connected', sm.leadToConnected, '%'], ['Connected→Interested', sm.connectedToInterested, '%'],
+    ['Interested→Demo', sm.interestedToDemo, '%'], ['Demo→Payment', sm.demoToPayment, '%'],
+    ['Required HC', sm.requiredHC, ''], ['Actual HC', sm.actualHC, ''],
+    ['Avoidable Attrition', sm.avoidableAttrition, '%']
+  ].filter(([,v]) => v !== null && v !== undefined);
+  if(!fields.length && !sm.notes) return '';
+  const cells = fields.map(([k,v,unit]) => `<div class="cell"><div class="k">${k}</div><div class="v">${v}${unit}</div></div>`).join('');
+  return `
+    <div class="card-sub" style="margin:2px 0 6px;">From the Manager KRA Master Sheet</div>
+    <div class="mgr-stats">${cells}</div>
+    ${sm.notes ? `<div style="font-size:11px;color:var(--text-muted);margin:0 0 12px;"><b style="color:var(--text-secondary)">Note:</b> ${sm.notes}</div>` : ''}`;
+}
+
+function renderManagerCards(monthKey){
+  const d = MONTHS[monthKey];
+  const html = d.managers.map((m,i) => {
+    const {scores, weighted, pending, hasRevenue} = computeAllScores(m, monthKey, d);
+    const initials = m.name.slice(0,2).toUpperCase();
+    const color = COLORS[i % COLORS.length];
+    const finalColor = weighted >= 80 ? 'var(--good)' : weighted >= 60 ? 'var(--warning)' : 'var(--critical)';
+    const kraRows = KRA_DEF.map(k => {
+      let display, cell;
+      if(k.manual){
+        const val = getManualScore(monthKey, m.name, k.key, m.department);
+        cell = `<input type="number" min="1" max="5" step="1" class="manual-input" placeholder="—"
+                 value="${val===null?'':val}"
+                 onchange="onManualInput('${monthKey}','${m.name}','${k.key}', this.value)" /> /5`;
+        display = val === null ? `<span class="pending-tag">PENDING</span>` : (val*20).toFixed(0);
+      } else if(scores[k.key] === null){
+        display = `<span class="pending-tag" style="color:var(--text-muted)">N/A</span>`;
+        cell = display;
+      } else {
+        display = scores[k.key].toFixed(0);
+        cell = display;
+      }
+      return `<tr>
+        <td class="kw">${k.label}</td>
+        <td class="num">${k.weight}%</td>
+        <td class="num">${k.manual ? cell : display}</td>
+      </tr>`;
+    }).join('');
+
+    const dept = m.department || 'Sales';
+    const locLine = (m.city === '—' && m.state === '—') ? dept : `${dept} · ${m.city}, ${m.state}`;
+    const pillHtml = hasRevenue
+      ? `<div class="status-pill" style="background:${statusColor(m.pctAchv)}22; color:${statusColor(m.pctAchv)}">
+          <span class="dot" style="background:${statusColor(m.pctAchv)}"></span>${statusLabel(m.pctAchv)}
+        </div>`
+      : `<div class="status-pill" style="background:var(--text-muted)22; color:var(--text-muted)">
+          <span class="dot" style="background:var(--text-muted)"></span>KRA input only
+        </div>`;
+    const statsHtml = hasRevenue
+      ? `<div class="mgr-stats">
+          <div class="cell"><div class="k">Target</div><div class="v">${fmtINR(m.target)}</div></div>
+          <div class="cell"><div class="k">Achieved</div><div class="v">${fmtINR(m.achieved)}</div></div>
+          <div class="cell"><div class="k">BDEs</div><div class="v">${m.bdes}</div></div>
+          <div class="cell"><div class="k">ROI %</div><div class="v">${m.roiPct.toFixed(1)}%</div></div>
+        </div>`
+      : `<div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">No Target/Achieved on file yet — add them via "✏️ Edit raw data" once this manager has revenue-style output, or leave as KRA-only (Leadership/Reporting/Attrition still score normally).</div>`;
+
+    return `
+    <div class="mgr-card">
+      <div class="mgr-head">
+        <div class="avatar" style="background:${color}">${initials}</div>
+        <div>
+          <div class="mgr-name">${m.name}</div>
+          <div class="mgr-loc">${locLine}</div>
+        </div>
+        ${pillHtml}
+      </div>
+      ${statsHtml}
+      ${renderSubMetrics(m.subMetrics)}
+
+      <details class="edit-panel" ${openEditPanels.has(monthKey+'|'+m.name)?'open':''} ontoggle="onEditPanelToggle('${monthKey}','${m.name}', this.open)">
+        <summary>✏️ Edit raw data</summary>
+        <div class="edit-grid">
+          <label>Target Revenue
+            <input type="number" value="${m.target}" onchange="onEditField('${monthKey}','${m.name}','target', this.value)">
+          </label>
+          <label>Achieved Revenue (incl. GST)
+            <input type="number" value="${m.achieved}" onchange="onEditField('${monthKey}','${m.name}','achieved', this.value)">
+          </label>
+          <label>No. of Sale
+            <input type="number" value="${m.noOfSale}" onchange="onEditField('${monthKey}','${m.name}','noOfSale', this.value)">
+          </label>
+          <label>No. of BDEs
+            <input type="number" value="${m.bdes}" onchange="onEditField('${monthKey}','${m.name}','bdes', this.value)">
+          </label>
+          <label>Salary Cost
+            <input type="number" value="${m.salary}" onchange="onEditField('${monthKey}','${m.name}','salary', this.value)">
+          </label>
+          <label>Other Cost (marketing/CRM/etc.)
+            <input type="number" value="${m.otherCost}" onchange="onEditField('${monthKey}','${m.name}','otherCost', this.value)">
+          </label>
+          <label>Attrition % <span style="text-transform:none">(blank = not tracked)</span>
+            <input type="number" step="0.1" value="${m.attritionPct===null?'':m.attritionPct}" placeholder="—" onchange="onEditField('${monthKey}','${m.name}','attritionPct', this.value)">
+          </label>
+          <div class="edit-actions"><button class="reset-link" onclick="resetManager('${monthKey}','${m.name}')">Reset this manager to sheet data</button></div>
+        </div>
+      </details>
+
+      <table class="kra-table">
+        <thead><tr><th>KRA</th><th class="num">Weight</th><th class="num">Score /100</th></tr></thead>
+        <tbody>${kraRows}</tbody>
+      </table>
+      <div class="final-score-row">
+        <div>
+          <div class="fs-label">Final Appraisal Score</div>
+          <div class="fs-note">${pending.length ? pending.length+' KRA(s) awaiting HR input' : 'All KRAs scored'}</div>
+        </div>
+        <div class="fs-value" style="color:${finalColor}">${weighted.toFixed(1)}</div>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('manager-grid').innerHTML = html;
+}
+
+function onEditPanelToggle(monthKey, name, isOpen){
+  const k = monthKey+'|'+name;
+  if(isOpen) openEditPanels.add(k); else openEditPanels.delete(k);
+}
+
+function onManualInput(monthKey, name, key, val){
+  setManualScore(monthKey, name, key, val);
+  renderManagerCards(monthKey);
+}
+
+function onEditField(monthKey, name, field, rawVal){
+  const m = MONTHS[monthKey].managers.find(x => x.name === name);
+  if(!m) return;
+  if(field === 'attritionPct' && rawVal === ''){
+    m.attritionPct = null;
+  } else {
+    const n = Number(rawVal);
+    m[field] = isNaN(n) ? m[field] : n;
+  }
+  recomputeManager(m);
+  recomputePrevBdesChain(); // keeps every month's "prior BDE count" reference in sync
+  renderMonthView(currentMonth);
+}
+
+function resetManager(monthKey, name){
+  // Other-department managers come only from the Master Sheet, not the Sales Data Sheet,
+  // so they have no ORIGINAL_MONTHS snapshot to reset to — re-fetch instead in that case.
+  const orig = ORIGINAL_MONTHS[monthKey] && ORIGINAL_MONTHS[monthKey].managers.find(x => x.name === name);
+  if(!orig){ refreshAllFromSheet(false); return; }
+  const idx = MONTHS[monthKey].managers.findIndex(x => x.name === name);
+  MONTHS[monthKey].managers[idx] = JSON.parse(JSON.stringify(orig));
+  recomputePrevBdesChain();
+  mergeMasterIntoMonths();
+  renderMonthView(currentMonth);
+  if(currentView === 'compare') renderCompareView();
+}
+
+function resetAllData(){
+  if(!confirm('Reset every edited figure back to the last fetched/saved data? Manual Leadership/Reporting scores will also clear.')) return;
+  MONTH_TABS.forEach(tab => {
+    if(MONTHS[tab.key] && ORIGINAL_MONTHS[tab.key]) MONTHS[tab.key].managers = JSON.parse(JSON.stringify(ORIGINAL_MONTHS[tab.key].managers));
+  });
+  recomputePrevBdesChain();
+  mergeMasterIntoMonths(); // re-attach sub-metrics and re-add any other-department managers
+  Object.keys(manualScores).forEach(k => delete manualScores[k]);
+  renderMonthView(currentMonth);
+  if(currentView === 'compare') renderCompareView();
+}
+
+function renderMonthView(monthKey){
+  currentMonth = monthKey;
+  renderKpis(monthKey);
+  renderTargetAchievedChart(monthKey);
+  renderPctAchvChart(monthKey);
+  renderManagerCards(monthKey);
+}
+
+// Works over however many months are registered in MONTH_TABS (not just two) — a new
+// month tab automatically gets its own bar/column here once it has data.
+function renderCompareView(){
+  const tabs = MONTH_TABS.filter(t => MONTHS[t.key] && MONTHS[t.key].managers.length);
+  document.querySelector('#compare-view .compare-card h3').textContent = '% of Achievement — ' + tabs.map(t=>t.label).join(' vs. ');
+  document.querySelector('#compare-view .compare-card .card-sub').textContent = tabs.length <= 2
+    ? (tabs.length === 1 ? 'Only 1 month is in scope so far' : 'Only ' + tabs.length + ' months are in scope, so this shows a direct month-over-month read rather than a full trendline')
+    : tabs.length + ' months in scope';
+
+  const names = [...new Set(tabs.flatMap(t => MONTHS[t.key].managers.map(m => m.name)))];
+  const maxPct = Math.max(1, ...tabs.flatMap(t => MONTHS[t.key].managers.map(m => m.pctAchv))) * 1.15;
+
+  const html = names.map(name => {
+    const bars = tabs.map((t, i) => {
+      const m = MONTHS[t.key].managers.find(x => x.name === name);
+      const pct = m && hasRevenueData(m) ? m.pctAchv : null;
+      const h = pct === null ? 4 : Math.max(4, pct/maxPct*180);
+      const color = COLORS[i % COLORS.length];
+      const tip = `${name} · ${t.label}: ${pct===null ? 'no data' : pct.toFixed(1)+'%'}`;
+      return `<div class="trend-bar" style="height:${h}px; background:${color}" data-tip="${tip}">${pct===null?'':`<span class="tval">${pct.toFixed(0)}%</span>`}</div>`;
+    }).join('');
+    return `<div class="trend-group"><div class="trend-bars">${bars}</div><div class="trend-name">${name}</div></div>`;
+  }).join('');
+  document.getElementById('trend-chart').innerHTML = html;
+  wireTooltips('#trend-chart [data-tip]');
+
+  document.querySelector('#compare-view .legend').innerHTML = tabs.map((t,i) =>
+    `<div class="lg-item"><span class="swatch" style="background:${COLORS[i % COLORS.length]}"></span> ${t.label}</div>`).join('');
+
+  const headerCells = tabs.map(t => `<th>${t.label} Target</th><th>${t.label} Achieved</th><th>${t.label} %</th>`).join('');
+  const rows = names.map(name => {
+    const cells = tabs.map(t => {
+      const m = MONTHS[t.key].managers.find(x => x.name === name);
+      return m ? `<td>${fmtINR(m.target)}</td><td>${fmtINR(m.achieved)}</td><td>${m.pctAchv.toFixed(1)}%</td>` : `<td>—</td><td>—</td><td>—</td>`;
+    }).join('');
+    const bdeChain = tabs.map(t => { const m = MONTHS[t.key].managers.find(x=>x.name===name); return m ? m.bdes : '—'; }).join(' → ');
+    return `<tr><td class="name-cell">${name}</td>${cells}<td>${bdeChain}</td></tr>`;
+  }).join('');
+  document.getElementById('compare-table-wrap').innerHTML = `
+    <table class="data-table">
+      <thead><tr><th>Manager</th>${headerCells}<th>BDEs (${tabs.map(t=>t.label.split(' ')[0]).join('→')})</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function renderKraReference(){
+  const html = KRA_DEF.map(k => `
+    <div class="kra-ref-row ${k.manual?'manual':''}">
+      <div class="name">${k.label}${k.manual?' <span class="pending-tag">MANUAL</span>':''}</div>
+      <div class="track"><div class="fill" style="width:${k.weight/60*100}%"></div></div>
+      <div class="wt">${k.weight}%</div>
+    </div>`).join('');
+  document.getElementById('kra-ref-list').innerHTML = html;
+}
+
+function wireTooltips(selector){
+  const tip = document.getElementById('tooltip');
+  document.querySelectorAll(selector).forEach(el => {
+    el.addEventListener('mousemove', e => {
+      tip.textContent = el.getAttribute('data-tip');
+      tip.style.left = e.clientX + 'px';
+      tip.style.top = e.clientY + 'px';
+      tip.style.opacity = 1;
+    });
+    el.addEventListener('mouseleave', () => tip.style.opacity = 0);
+  });
+}
+
+// ---------- NAV ----------
+document.getElementById('month-tabs').addEventListener('click', e => {
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  document.querySelectorAll('#month-tabs button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  if(btn.dataset.view === 'compare'){
+    currentView = 'compare';
+    document.getElementById('month-view').hidden = true;
+    document.getElementById('compare-view').hidden = false;
+    renderCompareView();
+  } else {
+    currentView = 'month';
+    document.getElementById('month-view').hidden = false;
+    document.getElementById('compare-view').hidden = true;
+    renderMonthView(btn.dataset.month);
+  }
+});
+
+function toggleTheme(){
+  const body = document.body;
+  const isDark = body.getAttribute('data-theme') === 'dark';
+  body.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  document.getElementById('theme-toggle').textContent = isDark ? '🌙 Dark mode' : '☀️ Light mode';
+  if(currentView === 'month') renderMonthView(currentMonth);
+  else renderCompareView();
+}
+
+function renderMonthTabs(){
+  const nav = document.getElementById('month-tabs');
+  const existing = new Set(MONTH_TABS.map(t=>t.key));
+  if(!existing.has(currentMonth)) currentMonth = MONTH_TABS[0] ? MONTH_TABS[0].key : currentMonth;
+  nav.innerHTML = MONTH_TABS.map(t =>
+    `<button data-month="${t.key}" class="${currentView==='month' && currentMonth===t.key ? 'active':''}">${t.label}</button>`
+  ).join('') + (MONTH_TABS.length > 1 ? `<button data-view="compare" class="${currentView==='compare'?'active':''}">Comparison</button>` : '');
+}
+
+// ---------- INIT ----------
+document.getElementById('gen-date').textContent = new Date().toLocaleDateString('en-IN', {year:'numeric', month:'long', day:'numeric'});
+renderKraReference();
+renderMonthTabs();
+renderDataStatus();
+renderMonthView(currentMonth);
+refreshAllFromSheet(false); // kick off a live pull in the background; falls back silently to the snapshot above if it fails
+</script>
+</body>
+</html>
