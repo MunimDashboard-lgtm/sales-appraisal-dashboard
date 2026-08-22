@@ -322,7 +322,7 @@
   </div>
 
   <div class="assumption-banner">
-    <b>How to read this:</b> Four KRAs are calculated automatically from the sales sheet — <b>Sales Achievement (60%)</b>, <b>Conversion &amp; Productivity (15%)</b>, <b>Team Expansion (10%)</b> and <b>Attrition &amp; Retention (5%)</b>. The remaining two — <b>Leadership (5%)</b> and <b>Reporting Discipline (5%)</b> — are qualitative. <b>Manager KRA Master Sheet:</b> Leadership and Reporting Discipline scores (and optional sub-metrics — conversion-funnel %, headcount, avoidable attrition) are pulled automatically from a second Google Sheet, the "Manager KRA Master Sheet" — fill scores in there and they show up here pre-filled (still editable per session). That same sheet is where you add managers from other departments: any manager/month row you add there appears as its own card here, scored on Leadership/Reporting/Attrition immediately and on Sales/Productivity/Expansion once you give them Target &amp; Achieved figures via "✏️ Edit raw data" (until then those three KRAs show "N/A" and the score is reweighted over what does apply). <b>Live data:</b> this page pulls Target/Achieved/BDE/Cost from the Sales Data Sheet and Leadership/Reporting/sub-metrics from the Master Sheet each time it's opened, using your own signed-in Google account — for this to work, your account needs its own Viewer (or better) access to both. Click "🔄 Refresh from Sheet" any time to re-pull either. <b>New months are automatic:</b> add a new tab to the Sales Data Sheet named like the existing ones (e.g. "Nov'26") and it's picked up on the next load or Refresh — no setup needed. Only tabs from July 2026 onward count as dashboard months (earlier tabs in that sheet predate this appraisal and are ignored). The Master Sheet works the same way already — just add rows with that month's label. <b>Everything here is also editable:</b> open "✏️ Edit raw data" on any manager card to correct a figure by hand — the % achieved, ROI, KRA scores, charts and totals all recalculate instantly. <b>Note:</b> hand-edits and any Leadership/Reporting score you change here (overriding the Master Sheet) only last for this browser tab/session — a "🔄 Refresh" or closing the tab discards them, so make lasting changes in the Master Sheet itself. Use "↺ Reset all data" to discard edits and go back to the last fetched (or saved) figures. <b>Managing who has access:</b> Amit's account sees an extra "⚙️ Manage Access" tab here to add or remove people from a dashboard-only access list, and to choose which departments (out of the "Department" dropdown above) each person is allowed to switch to — this is a deliberately separate gate from who can edit any department's raw Sales Data Sheet to enter their own figures, so a manager entering their own numbers doesn't automatically get to see the appraisal dashboard, or every department's data. It's not Google Sheets sharing at all: adding someone (or changing their departments) only edits this list, and can never hand out edit rights, or any Sheets permission at all, to anyone. <b>Multiple departments:</b> Amit's account also sees a "⚙️ Manage Departments" tab to connect each department's own Sales Data Sheet (and, optionally, its own Manager KRA Master Sheet) — the same 60/15/10/5/5/5 framework and every feature on this page applies to whichever department is currently selected.
+    <b>How to read this:</b> Four KRAs are calculated automatically from the sales sheet — <b>Sales Achievement (60%)</b>, <b>Conversion &amp; Productivity (15%)</b>, <b>Team Expansion (10%)</b> and <b>Attrition &amp; Retention (5%)</b>. The remaining two — <b>Leadership (5%)</b> and <b>Reporting Discipline (5%)</b> — are qualitative. <b>Manager KRA Master Sheet:</b> Leadership and Reporting Discipline scores (and optional sub-metrics — conversion-funnel %, headcount, avoidable attrition) are pulled automatically from a second Google Sheet, the "Manager KRA Master Sheet" — fill scores in there and they show up here pre-filled (still editable per session). That same sheet is where you add managers from other departments: any manager/month row you add there appears as its own card here, scored on Leadership/Reporting/Attrition immediately and on Sales/Productivity/Expansion once you give them Target &amp; Achieved figures via "✏️ Edit raw data" (until then those three KRAs show "N/A" and the score is reweighted over what does apply). <b>Live data:</b> this page pulls Target/Achieved/BDE/Cost from the one shared Sales Data Sheet (filtered to whichever department is selected) and Leadership/Reporting/sub-metrics from that department's Master Sheet each time it's opened, using your own signed-in Google account — for this to work, your account needs its own Viewer (or better) access to both. Click "🔄 Refresh from Sheet" any time to re-pull either. <b>New months are automatic:</b> just add new rows to the Sales Data Sheet for that month (same Month/Department/Name/Target/Achieved/... columns as the existing rows, e.g. Month = "Nov'26") and they're picked up on the next load or Refresh — no new tabs or setup needed. Only months from July 2026 onward count as dashboard months (earlier ones are ignored). The Master Sheet works the same way already — just add rows with that month's label. <b>Everything here is also editable:</b> open "✏️ Edit raw data" on any manager card to correct a figure by hand — the % achieved, ROI, KRA scores, charts and totals all recalculate instantly. <b>Note:</b> hand-edits and any Leadership/Reporting score you change here (overriding the Master Sheet) only last for this browser tab/session — a "🔄 Refresh" or closing the tab discards them, so make lasting changes in the Master Sheet itself. Use "↺ Reset all data" to discard edits and go back to the last fetched (or saved) figures. <b>Managing who has access:</b> Amit's account sees an extra "⚙️ Manage Access" tab here to add or remove people from a dashboard-only access list, and to choose which departments (out of the "Department" dropdown above) each person is allowed to switch to — this is a deliberately separate gate from who can edit any department's raw Sales Data Sheet to enter their own figures, so a manager entering their own numbers doesn't automatically get to see the appraisal dashboard, or every department's data. It's not Google Sheets sharing at all: adding someone (or changing their departments) only edits this list, and can never hand out edit rights, or any Sheets permission at all, to anyone. <b>Multiple departments:</b> Amit's account also sees a "⚙️ Manage Departments" tab to connect the one shared Sales Data Sheet that covers every department (tagged by its "Department" column) and, optionally, each department's own separate Manager KRA Master Sheet — the same 60/15/10/5/5/5 framework and every feature on this page applies to whichever department is currently selected.
   </div>
 
   <nav class="tabs" id="month-tabs"></nav>
@@ -409,17 +409,30 @@
 
   <section id="depts-view" hidden>
     <div class="card compare-card">
-      <h3>Connect each department's sheet</h3>
-      <div class="card-sub">Paste a department's Google Sheet link (or just its ID) here so the dashboard knows which Sheet to read when that department is selected. This never shares, unshares, or changes permissions on any Sheet — each signed-in user still reads it with their own Google account, so they need their own access to it (or "Anyone with the link" needs to stay on) for it to load here.</div>
+      <h3>Shared Sales Data Sheet (all departments)</h3>
+      <div class="card-sub">One Google Sheet with every department's manager/month figures — Month, Department, Name, Target, Achieved, and so on, one row per manager per month per department. Paste its link (or just its ID) here; the dashboard reads it once and filters it by department automatically. This never shares, unshares, or changes permissions on any Sheet — each signed-in user still reads it with their own Google account, so they need their own access to it (or "Anyone with the link" needs to stay on) for it to load here.</div>
+      <div class="access-error" id="shared-sheet-error"></div>
+      <div class="dept-form">
+        <label>Sales Data Sheet (link or ID)
+          <input type="text" id="shared-sheet-input" placeholder="https://docs.google.com/spreadsheets/d/...">
+        </label>
+        <div style="display:flex; gap:8px;">
+          <button class="icon-btn" id="shared-sheet-save" onclick="onSaveSharedSheet()">💾 Save shared sheet</button>
+          <button class="reset-link" onclick="onClearSharedSheet()">Disconnect</button>
+        </div>
+      </div>
+      <div class="card-sub" id="shared-sheet-status" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="card compare-card">
+      <h3>Manager KRA Master Sheet (optional, per department)</h3>
+      <div class="card-sub">For Leadership/Reporting scores only. Each department can point at its own Master Sheet, or leave this blank if it doesn't have one yet — those two KRAs just show N/A until it's connected.</div>
       <div class="access-error" id="depts-error"></div>
       <div class="dept-form">
         <label>Department
           <select id="dept-form-select" onchange="fillDeptForm(this.value)"></select>
         </label>
-        <label>Sales Data Sheet (link or ID)
-          <input type="text" id="dept-form-sheet" placeholder="https://docs.google.com/spreadsheets/d/...">
-        </label>
-        <label>Manager KRA Master Sheet (link or ID) — optional, for Leadership/Reporting scores
+        <label>Manager KRA Master Sheet (link or ID)
           <input type="text" id="dept-form-master" placeholder="Leave blank if this department has none yet">
         </label>
         <button class="icon-btn" id="dept-form-save" onclick="onSaveDeptConfig()" style="align-self:flex-start;">💾 Save department</button>
@@ -442,7 +455,7 @@
 
   <footer class="page-footer">
     <b>Methodology.</b> Sales Achievement score = % of target achieved (capped at 100). Productivity score = the manager's Average-Revenue-per-BDE relative to the best performer that month. Team Expansion score = whether BDE headcount held or grew vs. the prior month in scope (100 if maintained/grew). Attrition score = 100 − attrition % (from the Sales Data Sheet if tracked there, else from the Master Sheet's Avoidable Attrition column, else assumed 0). Leadership and Reporting Discipline come from the Manager KRA Master Sheet (1–5 scale), editable per session from any manager card. A manager with no Target/Achieved on file yet (e.g. a newly added other-department manager) shows Sales/Productivity/Expansion as N/A and their Final Score is reweighted over Attrition + Leadership + Reporting only, until Target/Achieved figures are added.<br>
-    <b>Departments.</b> Every department in the "Department" dropdown above (FST, IST Accounting, IST GST, IPT CA, IPT Non CA, Renewal GST, Renewal Accounting, FPT, Support, Quality) reads from its own Sales Data Sheet — connected, one at a time, from the admin-only "⚙️ Manage Departments" tab (see <code>DEPARTMENTS</code>/<code>DEPT_SHEETS</code>/<code>saveDeptSheetConfig()</code> near the top of the script) — and optionally its own Manager KRA Master Sheet for Leadership/Reporting scores; a department with no Master Sheet connected just shows those two KRAs as N/A, same as a manager with no Target/Achieved yet. Switching departments (<code>switchDepartment()</code>) re-points every month tab, chart, KPI and the Comparison view at that department's own data — nothing else about how any of that works changes per department. <b>Access, live fetch &amp; known data gaps.</b> This dashboard is gated behind Google sign-in (see <code>#auth-gate</code> / <code>initGoogleAuth</code> near the top of the script) — on sign-in, the page requests an OAuth access token for the signed-in Google account (any Gmail, Workspace or other Google account) and checks it against a dashboard-only access list (see <code>checkDashboardAccess()</code>/<code>getDashboardAllowlist()</code>) stored as private custom <code>appProperties</code> metadata on a fixed anchor Sheet file (<code>CONFIG_ANCHOR_ID</code>) — this is deliberately <b>not</b> Google Sheets sharing permissions. That same allow-list entry also records which departments (<code>dashDepts_*</code>) a person is allowed to switch to; an entry with none checked can sign in but sees nothing. Only accounts in <code>ADMIN_EMAILS</code> (who see every department) or emails added from the "Manage Access" tab, for their checked departments, can get past the gate; a person's own Editor or Viewer role on any raw Sheet has no bearing on this at all. Once past the gate, the page reads the current department's Sales Data Sheet's own tab list via the authenticated Sheets API metadata endpoint — see <code>discoverSheetTabs()</code> — to rebuild <code>MONTH_TABS</code> automatically from whatever month tabs actually exist there (named like "Sep'26"; only July 2026 onward counts — see <code>MONTH_START_CUTOFF</code>), then pulls each month's data plus that department's Master Sheet (if connected) via authenticated <code>values.get</code> calls, and re-derives every field through the same formulas as the manual edit boxes. The Sales Data Sheet's column layout differs slightly month to month (e.g. July adds a "DRR" column, August adds "Attrition %" and "Avg. per subscription cost", some months split into 1st/2nd fortnight tables) — the parser matches columns by name and sums fortnight tables automatically, but a month with a genuinely new layout may need a quick check; this applies per department, so a newly-connected department's first month is worth a glance. The Master Sheet is matched by its "Month" column text against each discovered tab's label, so a month's tab must exist in the Sales Data Sheet before its Master Sheet rows are picked up. Conversion-funnel metrics (lead→demo→payment) and headcount/attrition sub-metrics from the KRA document live in the Master Sheet and show as reference figures on each manager's card — they're not yet folded into the weighted score beyond feeding Attrition, since the funnel stages don't map to a single 0–100 KRA score on their own; extend <code>computeAllScores</code> if you want to add that. If a fetch fails after sign-in (e.g. a transient API error), the dashboard falls back to the last known data and figures it successfully loaded. <b>Manage Access tab:</b> gated to <code>ADMIN_EMAILS</code>, it only adds or removes entries (and their checked departments) on this dashboard-only allow-list (see <code>addToDashboardAllowlist()</code>/<code>removeFromDashboardAllowlist()</code>) by writing custom <code>appProperties</code> key/value pairs on the anchor file via the Drive API's <code>drive.metadata</code> scope — metadata only, no file-content access, so this still can never be used to read or write any Sheet's actual data (that only ever happens through <code>spreadsheets.readonly</code>) — and it never touches any Sheet's Share dialog. <b>Trade-off worth knowing:</b> because this app has no backend, every signed-in user's own browser has to be able to read the anchor file's <code>appProperties</code> just to check this list — and, once past the gate, read whichever Sheets their allowed departments point at — which is why "Anyone with the link" needs to stay switched on for every connected Sheet. The dashboard's real access control is this allow-list, not Sheets sharing, but that also means those raw Sheets remain viewable to anyone with the link if opened directly, outside this dashboard, regardless of who is or isn't on this list. While the OAuth app is in "Testing" status, each new person also needs a one-time manual add to the test-user list in Google Cloud Console before they can sign in at all.<br>
+    <b>Departments.</b> Every department in the "Department" dropdown above (FST, IST Accounting, IST GST, IPT CA, IPT Non CA, Renewal GST, Renewal Accounting, FPT, Support, Quality) is filtered, client-side, out of ONE shared Sales Data Sheet — Month, Department, Manager and figures all in one flat sheet, connected once from the admin-only "⚙️ Manage Departments" tab (see <code>SHARED_SHEET_ID</code>/<code>parseSharedSalesRows()</code>/<code>saveSharedSalesSheet()</code> near the top of the script) — plus, optionally, that department's own separate Manager KRA Master Sheet for Leadership/Reporting scores; a department with no Master Sheet connected just shows those two KRAs as N/A, same as a manager with no Target/Achieved yet, and a department with no rows tagged for it in the shared sheet shows an empty state until its rows are added. Switching departments (<code>switchDepartment()</code>) re-points every month tab, chart, KPI and the Comparison view at that department's own filtered data — nothing else about how any of that works changes per department. <b>Access, live fetch &amp; known data gaps.</b> This dashboard is gated behind Google sign-in (see <code>#auth-gate</code> / <code>initGoogleAuth</code> near the top of the script) — on sign-in, the page requests an OAuth access token for the signed-in Google account (any Gmail, Workspace or other Google account) and checks it against a dashboard-only access list (see <code>checkDashboardAccess()</code>/<code>getDashboardAllowlist()</code>) stored as private custom <code>appProperties</code> metadata on a fixed anchor Sheet file (<code>CONFIG_ANCHOR_ID</code>) — this is deliberately <b>not</b> Google Sheets sharing permissions. That same allow-list entry also records which departments (<code>dashDepts_*</code>) a person is allowed to switch to; an entry with none checked can sign in but sees nothing. Only accounts in <code>ADMIN_EMAILS</code> (who see every department) or emails added from the "Manage Access" tab, for their checked departments, can get past the gate; a person's own Editor or Viewer role on any raw Sheet has no bearing on this at all. Once past the gate, the page fetches the entire shared Sales Data Sheet once via the authenticated Sheets API — see <code>fetchSharedSalesData()</code> — groups every row by its Month and Department columns (only rows whose Department text matches one of the 10 known departments; unmatched text is skipped and surfaced under "Manage Departments"), rebuilds <code>MONTH_TABS</code> from whichever months exist for the currently-selected department (named like "Sep'26" in the Month column; only July 2026 onward counts — see <code>MONTH_START_CUTOFF</code>), then pulls that department's own Master Sheet (if connected) via an authenticated <code>values.get</code> call, and re-derives every field through the same formulas as the manual edit boxes. The Sales Data Sheet's numeric column layout is matched by header name (Target, Achieved, "No. of BDEs", etc.), so reordering or renaming those columns is safe as long as the wording stays recognizable. The Master Sheet is matched by its "Month" column text against the currently-selected department's discovered months, so a month must have rows in the shared Sales Data Sheet for that department before its Master Sheet rows are picked up. Conversion-funnel metrics (lead→demo→payment) and headcount/attrition sub-metrics from the KRA document live in the Master Sheet and show as reference figures on each manager's card — they're not yet folded into the weighted score beyond feeding Attrition, since the funnel stages don't map to a single 0–100 KRA score on their own; extend <code>computeAllScores</code> if you want to add that. If a fetch fails after sign-in (e.g. a transient API error), the dashboard falls back to the last known data and figures it successfully loaded. <b>Manage Access tab:</b> gated to <code>ADMIN_EMAILS</code>, it only adds or removes entries (and their checked departments) on this dashboard-only allow-list (see <code>addToDashboardAllowlist()</code>/<code>removeFromDashboardAllowlist()</code>) by writing custom <code>appProperties</code> key/value pairs on the anchor file via the Drive API's <code>drive.metadata</code> scope — metadata only, no file-content access, so this still can never be used to read or write any Sheet's actual data (that only ever happens through <code>spreadsheets.readonly</code>) — and it never touches any Sheet's Share dialog. <b>Trade-off worth knowing:</b> because this app has no backend, every signed-in user's own browser has to be able to read the anchor file's <code>appProperties</code> just to check this list — and, once past the gate, read the shared Sales Data Sheet and whichever Master Sheets their allowed departments point at — which is why "Anyone with the link" needs to stay switched on for every connected Sheet. The dashboard's real access control is this allow-list, not Sheets sharing, but that also means those raw Sheets remain viewable to anyone with the link if opened directly, outside this dashboard, regardless of who is or isn't on this list. While the OAuth app is in "Testing" status, each new person also needs a one-time manual add to the test-user list in Google Cloud Console before they can sign in at all.<br>
     Built for internal appraisal use at Identixweb / Munim — for Amit Choudhary.
   </footer>
 </div>
@@ -679,18 +692,20 @@ function describeAccessError(err, action){
   return `Could not ${action} right now (${err && err.message ? err.message : 'unknown error'}). Try again in a moment.`;
 }
 
-// ---------- MANAGE DEPARTMENTS (admin-only: which Sheet each department reads from) ----------
+// ---------- MANAGE DEPARTMENTS (admin-only: shared Sales Sheet + per-dept Master Sheet) ----------
 // Same private, dashboard-only appProperties store as the access allow-list (see above) — one
-// key per department, dashDept_<id> -> "salesSheetId|masterSheetId|masterGid" (the last two may
-// be blank). This never shares, unshares, or changes permissions on any Sheet: it only tells
-// this dashboard which Sheet ID to read for a given department. Each signed-in user still reads
-// that Sheet with their own Google account and needs their own access to it (or "Anyone with
-// the link" needs to stay on) — connecting a Sheet here doesn't grant anyone access to it.
+// key per department, dashDept_<id> -> "|masterSheetId|masterGid" (leading field kept blank; it
+// used to hold a per-department Sales Sheet ID before every department moved onto one shared
+// Sales Data Sheet, so old stored values there are simply ignored rather than needing a
+// migration). This never shares, unshares, or changes permissions on any Sheet: it only tells
+// this dashboard which Sheet ID to read. Each signed-in user still reads that Sheet with their
+// own Google account and needs their own access to it (or "Anyone with the link" needs to stay
+// on) — connecting a Sheet here doesn't grant anyone access to it.
 function deptConfigKey(deptId){ return 'dashDept_' + deptId; }
-function encodeDeptConfig(cfg){ return [cfg.sheetId || '', cfg.masterSheetId || '', cfg.masterGid || ''].join('|'); }
+function encodeDeptConfig(cfg){ return ['', cfg.masterSheetId || '', cfg.masterGid || ''].join('|'); }
 function decodeDeptConfig(raw){
   const parts = (raw || '').split('|');
-  return { sheetId: parts[0] || '', masterSheetId: parts[1] || '', masterGid: parts[2] || '' };
+  return { masterSheetId: parts[1] || '', masterGid: parts[2] || '' };
 }
 // Accepts either a full Google Sheets URL or a bare spreadsheet ID and returns just the ID.
 function extractSheetId(input){
@@ -705,15 +720,25 @@ function applyDeptSheetConfigFromProps(props){
     cfg[k.slice('dashDept_'.length)] = decodeDeptConfig(props[k]);
   });
   DEPT_SHEETS = cfg;
+  const sharedId = props['dashSharedSalesSheet'] || '';
+  if(sharedId !== SHARED_SHEET_ID) SHARED_SHEET_TAB = null; // force re-resolving the tab if the sheet changed
+  SHARED_SHEET_ID = sharedId;
 }
-async function saveDeptSheetConfig(deptId, sheetIdRaw, masterSheetIdRaw){
-  const cfg = { sheetId: extractSheetId(sheetIdRaw), masterSheetId: extractSheetId(masterSheetIdRaw), masterGid: '' };
+async function saveDeptSheetConfig(deptId, masterSheetIdRaw){
+  const cfg = { masterSheetId: extractSheetId(masterSheetIdRaw), masterGid: '' };
   await writeConfigProps({ [deptConfigKey(deptId)]: encodeDeptConfig(cfg) });
   DEPT_SHEETS[deptId] = cfg;
 }
-async function clearDeptSheetConfig(deptId){
-  await writeConfigProps({ [deptConfigKey(deptId)]: null });
-  delete DEPT_SHEETS[deptId];
+async function saveSharedSalesSheet(sheetIdRaw){
+  const id = extractSheetId(sheetIdRaw);
+  await writeConfigProps({ dashSharedSalesSheet: id });
+  SHARED_SHEET_ID = id;
+  SHARED_SHEET_TAB = null;
+}
+async function clearSharedSalesSheet(){
+  await writeConfigProps({ dashSharedSalesSheet: null });
+  SHARED_SHEET_ID = '';
+  SHARED_SHEET_TAB = null;
 }
 
 async function fetchUserInfo(){
@@ -762,9 +787,10 @@ async function checkDashboardAccess(){
   } catch(err){
     // For everyone else, this fetch failing IS the gate failing — their allow-list entry (and
     // which departments they can see) lives only here. For an admin, don't let a transient
-    // Drive error lock them out entirely — fall back to DEFAULT_DEPT_SHEETS (FST only, same as
-    // before multi-department existed) so they can still sign in and go fix things; they'll see
-    // the real error the moment they open "Manage Access"/"Manage Departments" instead.
+    // Drive error lock them out entirely — fall back to DEFAULT_DEPT_SHEETS (no shared Sales
+    // Data Sheet, FST's own default Master Sheet only) so they can still sign in and go fix
+    // things; they'll see the real error the moment they open "Manage Access"/"Manage
+    // Departments" instead.
     if(!isAdminEmail) throw err;
   }
   applyDeptSheetConfigFromProps(props);
@@ -821,9 +847,11 @@ function enterApp(){
 }
 
 // ---------- MULTI-DEPARTMENT SUPPORT ----------
-// This dashboard now covers every department below, not just FST — each has its own Sales
-// Data Sheet (and optionally its own Manager KRA Master Sheet) connected from the admin-only
-// "Manage Departments" tab, and a person only sees the departments checked for them on the
+// This dashboard now covers every department below, not just FST — every department's manager/
+// month sales figures live in ONE shared Sales Data Sheet (tagged by a "Department" column,
+// connected once from the admin-only "Manage Departments" tab) that this dashboard filters
+// client-side per department; each department can separately have its own Manager KRA Master
+// Sheet, also connected there. A person only sees the departments checked for them on the
 // "Manage Access" tab. Everything else in this file (KRA scoring, month tabs, edit boxes,
 // comparison view) works exactly as it always did — it's just re-pointed at whichever
 // department is currently selected instead of always FST.
@@ -841,23 +869,31 @@ const DEPARTMENTS = [
 ];
 function deptName(id){ const d = DEPARTMENTS.find(x => x.id === id); return d ? d.name : id; }
 
-// Fixed Drive file used purely as a private metadata anchor — both the access allow-list
-// (dashUser_*/dashDepts_*, see below) and this per-department Sheet registry (dashDept_*) live
-// in its appProperties. It happens to be FST's own Manager KRA Master Sheet (kept for backward
-// compatibility with access-list entries already stored there), but nothing about it is FST-
-// specific anymore — it's just the anchor file.
+// Fixed Drive file used purely as a private metadata anchor — the access allow-list
+// (dashUser_*/dashDepts_*, see below), the per-department Master Sheet registry (dashDept_*)
+// and the shared Sales Data Sheet's id (dashSharedSalesSheet) all live in its appProperties.
+// It happens to be FST's own original Manager KRA Master Sheet (kept for backward compatibility
+// with access-list entries already stored there), but nothing about it is FST-specific anymore
+// — it's just the anchor file.
 const CONFIG_ANCHOR_ID = '11zYFyCdF9-3oPd_7cRouTdWW_sSM1IpV3Wih7tIv4As';
 
-// Seed so FST keeps working with zero setup even before an admin ever opens "Manage
-// Departments" — every other department starts unconnected (no sheetId) until added there.
+// Per-department config now only covers each department's own (optional) Manager KRA Master
+// Sheet — the Sales Data Sheet itself is a single sheet shared by every department (see
+// SHARED_SHEET_ID below), not configured per department any more.
 const DEFAULT_DEPT_SHEETS = {
-  FST: { sheetId: '1r9oZ1bgSzvS9zHR2oq6zGNgq1-Tf1lzNi4IfVImAecY', masterSheetId: CONFIG_ANCHOR_ID, masterGid: '367533271' }
+  FST: { masterSheetId: CONFIG_ANCHOR_ID, masterGid: '367533271' }
 };
 let DEPT_SHEETS = JSON.parse(JSON.stringify(DEFAULT_DEPT_SHEETS)); // replaced by applyDeptSheetConfigFromProps() at sign-in
 let currentDept = 'FST';
 let userAllowedDepts = null; // null = admin (sees every department); else a Set of allowed ids
 
-function activeSheetId(){ const c = DEPT_SHEETS[currentDept]; return c && c.sheetId ? c.sheetId : null; }
+// The one Sales Data Sheet every department reads from, filtered by its "Department" column —
+// see the SHARED SALES DATA section below. Set/cleared from "Manage Departments"; stored as
+// appProperties key dashSharedSalesSheet on CONFIG_ANCHOR_ID.
+let SHARED_SHEET_ID = '';
+let SHARED_SHEET_TAB = null; // resolved tab title, cached once per SHARED_SHEET_ID
+
+function activeSheetId(){ return SHARED_SHEET_ID || null; }
 function activeMasterSheetId(){ const c = DEPT_SHEETS[currentDept]; return c && c.masterSheetId ? c.masterSheetId : null; }
 function allowedDepartments(){ return userAllowedDepts === null ? DEPARTMENTS : DEPARTMENTS.filter(d => userAllowedDepts.has(d.id)); }
 
@@ -903,19 +939,15 @@ async function switchDepartment(deptId){
 
 // ---------- LIVE GOOGLE SHEET FETCH ----------
 // MONTH_TABS below is just the OFFLINE FALLBACK seed for FST (so the page still renders
-// something if the tab-list fetch below ever fails before it can run once) — on every load and
-// Refresh, discoverSheetTabs()/syncMonthTabs() re-read the currently-selected department's own
-// tab list via the authenticated Sheets API and rebuild this array automatically, so a
-// brand-new month tab (e.g. "Nov'26") needs no manual registration at all.
+// something before the first live fetch ever completes) — on every load and Refresh,
+// refreshAllFromSheet() rebuilds this array from whichever months the shared Sales Data Sheet
+// actually has rows for, for the currently-selected department.
 let MONTH_TABS = [
-  { key: '2026-07', title: "Jul'26", label: 'July 2026', sortKey: 202607 },
-  { key: '2026-08', title: "Aug'26", label: 'August 2026', sortKey: 202608 },
-  { key: '2026-09', title: "Sep'26", label: 'September 2026', sortKey: 202609 }
+  { key: '2026-07', label: 'July 2026', sortKey: 202607 },
+  { key: '2026-08', label: 'August 2026', sortKey: 202608 },
+  { key: '2026-09', label: 'September 2026', sortKey: 202609 }
 ];
 
-// Discovers every month tab in the Sales Data Sheet via the official, authenticated Sheets API
-// metadata endpoint (spreadsheets.get) — returns every tab's real title, which is also what's
-// needed to build the A1-notation range for the values.get call in fetchMonthFromSheet below.
 const MONTH_ABBR = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
 const MONTH_FULL = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
 const MONTH_START_CUTOFF = 202607; // July 2026 — earliest month this dashboard tracks; older
@@ -939,41 +971,6 @@ async function getSheetTitleByGid(spreadsheetId, gid){
   const data = await apiFetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties`);
   const found = (data.sheets || []).find(s => String(s.properties.sheetId) === String(gid));
   return found ? found.properties.title : null;
-}
-async function discoverSheetTabs(){
-  const sheetId = activeSheetId();
-  if(!sheetId) return [];
-  const data = await apiFetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties`);
-  const tabs = [];
-  (data.sheets || []).forEach(s => {
-    const props = s.properties;
-    const parsed = parseTabTitle(props.title);
-    if(!parsed) return;
-    const sortKey = parsed.year * 100 + parsed.month;
-    if(sortKey < MONTH_START_CUTOFF) return;
-    tabs.push({
-      key: parsed.year + '-' + String(parsed.month).padStart(2, '0'),
-      title: props.title,
-      label: MONTH_FULL[parsed.month] + ' ' + parsed.year,
-      sortKey
-    });
-  });
-  return tabs.sort((a, b) => a.sortKey - b.sortKey);
-}
-// Rebuilds MONTH_TABS in place (so every other reference to the same array/object sees the
-// update) from whatever the Sheet's tab list says right now. On failure, leaves MONTH_TABS
-// exactly as it was — the dashboard just keeps showing the months it already knew about.
-async function syncMonthTabs(){
-  try{
-    const discovered = await discoverSheetTabs();
-    if(!discovered.length) return false;
-    MONTH_TABS.length = 0;
-    discovered.forEach(t => MONTH_TABS.push(t));
-    return true;
-  } catch(err){
-    console.warn('Month-tab discovery failed, keeping existing MONTH_TABS', err);
-    return false;
-  }
 }
 // Second sheet, per department: the "Manager KRA Master Sheet" — where HR/founder fill in
 // Leadership & Reporting Discipline scores (and optional sub-metrics). One tab, no per-month
@@ -1053,67 +1050,124 @@ function applyPositionalFallback(colMap, rows, dataRowIdx){
   return colMap; // guess didn't check out — leave unmapped rather than risk wrong numbers
 }
 
-// A month's tab may be one simple table, or split into "1st/2nd fortnight" sub-tables
-// (several months in this sheet are laid out that way) — this finds every table that
-// starts with a "Name" header cell and aggregates all of them by manager name.
-function parseMonthRows(rows){
-  const managers = {}; // name -> accumulated raw fields
-  for(let r = 0; r < rows.length; r++){
-    const headerIdx = rows[r].findIndex(c => /^name$/i.test((c||'').trim()));
-    if(headerIdx === -1) continue;
-    let colMap = {};
-    rows[r].forEach((cell, i) => { const k = matchHeader((cell||'').trim()); if(k && colMap[k]===undefined) colMap[k] = i; });
-    if(colMap.name === undefined) continue;
-    colMap = applyPositionalFallback(colMap, rows, r + 1);
-    // Walk data rows until we hit the next header row, a "total" row, or run out.
-    for(let d = r + 1; d < rows.length; d++){
-      const nameCell = (rows[d][colMap.name] || '').trim();
-      if(!nameCell) break;
-      if(/^total$/i.test(nameCell)) continue;
-      if(/^name$/i.test(nameCell)) break; // next table's header
-      const num = (key) => {
-        if(colMap[key] === undefined) return null;
-        const raw = (rows[d][colMap[key]] || '').replace(/[₹,%\s]/g, '');
-        const v = parseFloat(raw);
-        return isNaN(v) ? null : v;
-      };
-      const acc = managers[nameCell] || {
-        name: nameCell,
-        state: (rows[d][colMap.state] || '').trim() || undefined,
-        city: (rows[d][colMap.city] || '').trim() || undefined,
-        target: 0, achieved: 0, noOfSale: 0, bdes: 0, salary: 0, otherCost: 0,
-        attritionSum: 0, attritionCount: 0
-      };
-      acc.target += num('target') || 0;
-      acc.achieved += num('achieved') || 0;
-      acc.noOfSale += num('noOfSale') || 0;
-      acc.bdes += num('bdes') || 0;
-      acc.salary += num('salary') || 0;
-      acc.otherCost += num('otherCost') || 0;
-      const attr = num('attritionPct');
-      if(attr !== null){ acc.attritionSum += attr; acc.attritionCount++; }
-      managers[nameCell] = acc;
-    }
-  }
-  return Object.values(managers).map(acc => {
-    const m = {
-      name: acc.name, department: 'Sales', state: acc.state || '—', city: acc.city || '—',
-      target: acc.target, achieved: acc.achieved, noOfSale: acc.noOfSale, bdes: acc.bdes,
-      salary: acc.salary, otherCost: acc.otherCost,
-      attritionPct: acc.attritionCount ? acc.attritionSum / acc.attritionCount : null
-    };
-    recomputeManager(m);
-    return m;
-  }).filter(m => m.target > 0 || m.achieved > 0);
-}
+// ---------- SHARED SALES DATA SHEET (one sheet, every department, every month) ----------
+// One flat table — Month | Department | Name | State | City | Target | Achieved | ... — same
+// column set as the old per-department monthly tabs, just with Month and Department columns
+// added at the front so every department's every month lives in the same sheet. Parsed once per
+// refresh into SHARED_SALES_DATA (monthKey -> {label, sortKey, byDept: {deptId: managers[]}}),
+// then each department's MONTH_TABS/MONTHS are just a filter over that, entirely client-side —
+// no per-department network fetch needed any more.
+let SHARED_SALES_DATA = {};
+// Raw "Department" column text this dashboard couldn't match to any of the 10 known
+// departments (e.g. a typo) — surfaced in "Manage Departments" so it's easy to spot and fix.
+let SHARED_SALES_UNMATCHED_DEPTS = new Set();
 
-async function fetchMonthFromSheet(tab){
-  const sheetId = activeSheetId();
-  const range = encodeURIComponent(sheetRange(tab.title));
-  const data = await apiFetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`);
-  const managers = parseMonthRows(data.values || []);
-  if(!managers.length) throw new Error('No manager rows parsed');
-  return managers;
+function normDeptText(s){ return (s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+function deptIdFromText(text){
+  const norm = normDeptText(text);
+  const found = DEPARTMENTS.find(d => normDeptText(d.id) === norm || normDeptText(d.name) === norm);
+  return found ? found.id : null;
+}
+// Accepts the same "Jul'26" style as the old tab titles, or a full "July 2026" style.
+function parseMonthCell(text){
+  const parsed = parseTabTitle(text);
+  if(parsed) return parsed;
+  const m = /^([A-Za-z]+)\s+(\d{4})$/.exec((text || '').trim());
+  if(m){
+    const idx = MONTH_FULL.findIndex(x => x.toLowerCase() === m[1].toLowerCase());
+    if(idx > 0) return { year: parseInt(m[2], 10), month: idx };
+  }
+  return null;
+}
+// The shared sheet's data tab: whichever tab is named "...sales..." (case-insensitive), falling
+// back to the first tab if none match — same pattern as resolveMasterTabTitle above.
+async function resolveSharedSalesTabTitle(sheetId){
+  const data = await apiFetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties`);
+  const sheets = data.sheets || [];
+  const named = sheets.find(s => /sales/i.test(s.properties.title));
+  if(named) return named.properties.title;
+  return sheets[0] ? sheets[0].properties.title : null;
+}
+function parseSharedSalesRows(rows){
+  const byMonth = {};
+  SHARED_SALES_UNMATCHED_DEPTS = new Set();
+  if(!rows.length) return byMonth;
+  let colMap = {};
+  rows[0].forEach((cell, i) => {
+    const text = (cell || '').trim();
+    const k = /^month$/i.test(text) ? 'month' : /^department$/i.test(text) ? 'department' : matchHeader(text);
+    if(k && colMap[k] === undefined) colMap[k] = i;
+  });
+  if(colMap.month === undefined || colMap.department === undefined || colMap.name === undefined) return byMonth;
+  colMap = applyPositionalFallback(colMap, rows, 1);
+  const num = (row, key) => {
+    if(colMap[key] === undefined) return null;
+    const raw = (row[colMap[key]] || '').replace(/[₹,%\s]/g, '');
+    if(raw === '') return null;
+    const v = parseFloat(raw);
+    return isNaN(v) ? null : v;
+  };
+  const buckets = {}; // "monthKey|deptId" -> { name -> accumulated raw fields }
+  for(let r = 1; r < rows.length; r++){
+    const row = rows[r];
+    const monthText = (row[colMap.month] || '').trim();
+    const nameText = (row[colMap.name] || '').trim();
+    if(!monthText || !nameText || /^total$/i.test(nameText)) continue;
+    const parsed = parseMonthCell(monthText);
+    if(!parsed) continue;
+    const sortKey = parsed.year * 100 + parsed.month;
+    if(sortKey < MONTH_START_CUTOFF) continue;
+    const monthKey = parsed.year + '-' + String(parsed.month).padStart(2, '0');
+    const label = MONTH_FULL[parsed.month] + ' ' + parsed.year;
+    const deptText = (row[colMap.department] || '').trim();
+    const deptId = deptIdFromText(deptText);
+    if(!deptId){ if(deptText) SHARED_SALES_UNMATCHED_DEPTS.add(deptText); continue; }
+    if(!byMonth[monthKey]) byMonth[monthKey] = { label, sortKey, byDept: {} };
+    const bkey = monthKey + '|' + deptId;
+    if(!buckets[bkey]) buckets[bkey] = {};
+    const acc = buckets[bkey][nameText] || {
+      name: nameText,
+      state: (row[colMap.state] || '').trim() || undefined,
+      city: (row[colMap.city] || '').trim() || undefined,
+      target: 0, achieved: 0, noOfSale: 0, bdes: 0, salary: 0, otherCost: 0,
+      attritionSum: 0, attritionCount: 0
+    };
+    acc.target += num(row, 'target') || 0;
+    acc.achieved += num(row, 'achieved') || 0;
+    acc.noOfSale += num(row, 'noOfSale') || 0;
+    acc.bdes += num(row, 'bdes') || 0;
+    acc.salary += num(row, 'salary') || 0;
+    acc.otherCost += num(row, 'otherCost') || 0;
+    const attr = num(row, 'attritionPct');
+    if(attr !== null){ acc.attritionSum += attr; acc.attritionCount++; }
+    buckets[bkey][nameText] = acc;
+  }
+  Object.keys(buckets).forEach(bkey => {
+    const sep = bkey.indexOf('|');
+    const monthKey = bkey.slice(0, sep), deptId = bkey.slice(sep + 1);
+    const managers = Object.values(buckets[bkey]).map(acc => {
+      const m = {
+        name: acc.name, department: 'Sales', state: acc.state || '—', city: acc.city || '—',
+        target: acc.target, achieved: acc.achieved, noOfSale: acc.noOfSale, bdes: acc.bdes,
+        salary: acc.salary, otherCost: acc.otherCost,
+        attritionPct: acc.attritionCount ? acc.attritionSum / acc.attritionCount : null
+      };
+      recomputeManager(m);
+      return m;
+    }).filter(m => m.target > 0 || m.achieved > 0);
+    byMonth[monthKey].byDept[deptId] = managers;
+  });
+  return byMonth;
+}
+async function fetchSharedSalesData(){
+  if(!SHARED_SHEET_ID) return {};
+  if(!SHARED_SHEET_TAB){
+    SHARED_SHEET_TAB = await resolveSharedSalesTabTitle(SHARED_SHEET_ID);
+    if(!SHARED_SHEET_TAB) throw new Error('Could not locate a tab in the Sales Data Sheet');
+  }
+  const range = encodeURIComponent(`'${SHARED_SHEET_TAB.replace(/'/g, "''")}'!A1:Z5000`);
+  const data = await apiFetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHARED_SHEET_ID}/values/${range}?valueRenderOption=FORMATTED_VALUE`);
+  return parseSharedSalesRows(data.values || []);
 }
 
 // ---------- MASTER SHEET (Leadership / Reporting / sub-metrics / other departments) ----------
@@ -1252,35 +1306,51 @@ function hasRevenueData(m){ return m.target > 0 || m.achieved > 0; }
 
 async function refreshAllFromSheet(showAlertOnFail){
   if(!activeSheetId()){
-    // Nothing configured for this department yet — leave whatever's cached (usually nothing)
-    // and let renderMonthView show the "not connected" empty state instead of fetching.
+    // No shared Sales Data Sheet connected yet — wipe any stale cached/seed data (so the status
+    // line and the actual empty-state agree) and let renderMonthView show the "not connected"
+    // message instead of fetching.
+    MONTH_TABS.length = 0;
+    Object.keys(MONTHS).forEach(k => delete MONTHS[k]);
+    Object.keys(ORIGINAL_MONTHS).forEach(k => delete ORIGINAL_MONTHS[k]);
+    currentMonth = null;
     dataSource.status = 'unconfigured';
     renderMonthTabs();
     renderDataStatus();
-    if(currentView === 'month') renderMonthView(currentMonth);
+    renderMonthView(null);
     return;
   }
-  await syncMonthTabs(); // pick up any newly-added month tab before fetching each one's data
-  let anySuccess = false, anyFail = false;
-  for(const tab of MONTH_TABS){
-    try{
-      const managers = await fetchMonthFromSheet(tab);
-      if(!MONTHS[tab.key]) MONTHS[tab.key] = { label: tab.label, managers: [] };
-      MONTHS[tab.key].managers = managers;
-      if(!ORIGINAL_MONTHS[tab.key]) ORIGINAL_MONTHS[tab.key] = { label: tab.label };
-      ORIGINAL_MONTHS[tab.key].managers = JSON.parse(JSON.stringify(managers));
-      anySuccess = true;
-    } catch(err){
-      anyFail = true;
-      console.warn('Live fetch failed for', tab.label, err);
-    }
+  let sharedOk = false;
+  try{
+    SHARED_SALES_DATA = await fetchSharedSalesData();
+    sharedOk = true;
+  } catch(err){
+    console.warn('Shared Sales Data Sheet fetch failed', err);
+  }
+  if(sharedOk){
+    const months = Object.keys(SHARED_SALES_DATA)
+      .filter(mk => (SHARED_SALES_DATA[mk].byDept[currentDept] || []).length)
+      .map(mk => ({ key: mk, label: SHARED_SALES_DATA[mk].label, sortKey: SHARED_SALES_DATA[mk].sortKey }))
+      .sort((a, b) => a.sortKey - b.sortKey);
+    MONTH_TABS.length = 0;
+    months.forEach(t => MONTH_TABS.push(t));
+    Object.keys(MONTHS).forEach(k => delete MONTHS[k]);
+    Object.keys(ORIGINAL_MONTHS).forEach(k => delete ORIGINAL_MONTHS[k]);
+    MONTH_TABS.forEach(t => {
+      const managers = SHARED_SALES_DATA[t.key].byDept[currentDept] || [];
+      MONTHS[t.key] = { label: t.label, managers };
+      ORIGINAL_MONTHS[t.key] = { label: t.label, managers: JSON.parse(JSON.stringify(managers)) };
+    });
   }
   const masterOk = await refreshMasterData();
   recomputePrevBdesChain();
   mergeMasterIntoMonths();
   renderMonthTabs();
-  dataSource.status = anySuccess && !anyFail ? 'live' : anySuccess ? 'partial' : 'error';
-  dataSource.lastFetch = anySuccess ? new Date() : dataSource.lastFetch;
+  if(sharedOk){
+    dataSource.status = MONTH_TABS.length ? 'live' : 'nodata';
+    dataSource.lastFetch = new Date();
+  } else {
+    dataSource.status = Object.keys(MONTHS).length ? 'partial' : 'error';
+  }
   if(dataSource.status === 'error' && showAlertOnFail){
     alert('Could not reach the Sales Data Sheet. If your account was only just added as a Viewer, try signing out and back in — otherwise try Refresh again shortly. Showing the last saved data for now.');
   } else if(!masterOk && showAlertOnFail){
@@ -1299,9 +1369,10 @@ function renderDataStatus(){
     : masterSource.status === 'partial' ? ' · Master Sheet: last saved'
     : masterSource.status === 'error' ? ' · Master Sheet ✗ (check sharing)' : '';
   if(dataSource.status === 'live') el.innerHTML = `🟢 Live from Google Sheet · fetched ${time}${masterBit}`;
-  else if(dataSource.status === 'partial') el.innerHTML = `🟡 Partly live (one month failed to fetch) · ${time}${masterBit}`;
+  else if(dataSource.status === 'partial') el.innerHTML = `🟡 Could not re-fetch the Sales Data Sheet — showing last saved data${masterBit}`;
   else if(dataSource.status === 'error') el.innerHTML = `🔴 Could not reach the Sheet — showing last saved snapshot${masterBit}`;
-  else if(dataSource.status === 'unconfigured') el.innerHTML = `⚪ No Sheet connected for ${deptName(currentDept)} yet`;
+  else if(dataSource.status === 'nodata') el.innerHTML = `🟡 Sheet connected, but no rows found yet for ${deptName(currentDept)}${masterBit}`;
+  else if(dataSource.status === 'unconfigured') el.innerHTML = `⚪ No Sales Data Sheet connected yet`;
   else el.innerHTML = `⚪ Showing saved snapshot from Aug 21, 2026 · click Refresh to pull live data`;
 }
 
@@ -1672,9 +1743,13 @@ function renderMonthView(monthKey){
   if(!monthKey || !MONTHS[monthKey]){
     if(emptyEl){
       emptyEl.hidden = false;
-      emptyEl.innerHTML = !activeSheetId()
-        ? `No Sales Data Sheet has been connected for <b>${deptName(currentDept)}</b> yet. ${isAdmin() ? 'Add one from the "⚙️ Manage Departments" tab.' : 'Ask Amit to connect it from "Manage Departments".'}`
-        : `Still loading <b>${deptName(currentDept)}</b>'s data from Google Sheets — if this doesn't update in a moment, click "🔄 Refresh from Sheet".`;
+      if(!activeSheetId()){
+        emptyEl.innerHTML = `No Sales Data Sheet has been connected yet. ${isAdmin() ? 'Add one from the "⚙️ Manage Departments" tab.' : 'Ask Amit to connect it from "Manage Departments".'}`;
+      } else if(dataSource.status === 'nodata'){
+        emptyEl.innerHTML = `The Sales Data Sheet is connected, but no rows are tagged <b>${deptName(currentDept)}</b> yet. ${isAdmin() ? 'Check the "Department" column spelling for this department in the sheet — see "⚙️ Manage Departments" for any unrecognized values found.' : 'Ask Amit to check the Sheet for this department.'}`;
+      } else {
+        emptyEl.innerHTML = `Still loading <b>${deptName(currentDept)}</b>'s data from Google Sheets — if this doesn't update in a moment, click "🔄 Refresh from Sheet".`;
+      }
     }
     ['kpi-row','chart-target-achieved','chart-pct-achv','manager-grid'].forEach(id => { const el = document.getElementById(id); if(el) el.innerHTML = ''; });
     return;
@@ -1695,14 +1770,14 @@ function renderDeptSelector(){
 function renderDeptSubtitle(){
   const el = document.getElementById('dept-subtitle');
   if(!el) return;
-  el.innerHTML = `<b>${deptName(currentDept)}</b> — KRA-weighted performance for this department's managers, built from its own Sales Data Sheet (and Manager KRA Master Sheet, where connected) and the Sales Manager KRA &amp; Weightage Structure. The same 60/15/10/5/5/5 framework scores every department.`;
+  el.innerHTML = `<b>${deptName(currentDept)}</b> — KRA-weighted performance for this department's managers, filtered from the shared Sales Data Sheet (and this department's own Manager KRA Master Sheet, where connected) using the Sales Manager KRA &amp; Weightage Structure. The same 60/15/10/5/5/5 framework scores every department.`;
 }
 function renderSourceLine(){
   const el = document.getElementById('source-line');
   if(!el) return;
   const cfg = DEPT_SHEETS[currentDept] || {};
-  const parts = [cfg.sheetId ? `<b>${deptName(currentDept)}</b> Sales Data Sheet` : `<b>${deptName(currentDept)}</b> (not connected)`];
-  if(cfg.masterSheetId) parts.push('<b>Manager KRA Master Sheet</b>');
+  const parts = [SHARED_SHEET_ID ? 'Sales Data Sheet (shared, filtered to <b>' + deptName(currentDept) + '</b>)' : 'Sales Data Sheet (not connected)'];
+  if(cfg.masterSheetId) parts.push(`<b>${deptName(currentDept)}</b> Manager KRA Master Sheet`);
   el.innerHTML = 'Source: ' + parts.join(' + ') + ' (Google Sheets)';
 }
 
@@ -1983,7 +2058,6 @@ function fillDeptForm(deptId){
   const sel = document.getElementById('dept-form-select');
   if(sel) sel.value = deptId;
   const cfg = DEPT_SHEETS[deptId] || {};
-  document.getElementById('dept-form-sheet').value = cfg.sheetId || '';
   document.getElementById('dept-form-master').value = cfg.masterSheetId || '';
 }
 function renderDeptsList(){
@@ -1991,19 +2065,21 @@ function renderDeptsList(){
   if(!el) return;
   const rows = DEPARTMENTS.map(d => {
     const cfg = DEPT_SHEETS[d.id];
-    const sheetOk = cfg && cfg.sheetId;
     const masterOk = cfg && cfg.masterSheetId;
+    const monthsForDept = Object.keys(SHARED_SALES_DATA).filter(mk => (SHARED_SALES_DATA[mk].byDept[d.id] || []).length).length;
+    const salesCell = !SHARED_SHEET_ID
+      ? '<span style="color:var(--text-muted);">no shared sheet connected</span>'
+      : monthsForDept
+        ? `✅ ${monthsForDept} month${monthsForDept === 1 ? '' : 's'} of data`
+        : '<span style="color:var(--text-muted);">no rows found yet</span>';
     return `<tr>
       <td class="name-cell">${d.name}</td>
-      <td>${sheetOk ? '✅ connected' : '<span style="color:var(--text-muted);">not connected</span>'}</td>
+      <td>${salesCell}</td>
       <td>${masterOk ? '✅ connected' : '<span style="color:var(--text-muted);">none</span>'}</td>
-      <td>
-        <button class="reset-link" onclick="onEditDept('${d.id}')">Edit</button>
-        ${sheetOk ? `<button class="reset-link" onclick="onClearDept('${d.id}')">Disconnect</button>` : ''}
-      </td>
+      <td><button class="reset-link" onclick="onEditDept('${d.id}')">Edit</button></td>
     </tr>`;
   }).join('');
-  el.innerHTML = `<table class="data-table"><thead><tr><th>Department</th><th>Sales Data Sheet</th><th>Master Sheet</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  el.innerHTML = `<table class="data-table"><thead><tr><th>Department</th><th>Sales Data (shared sheet)</th><th>Master Sheet</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 function onEditDept(deptId){
   fillDeptForm(deptId);
@@ -2012,44 +2088,85 @@ function onEditDept(deptId){
 async function onSaveDeptConfig(){
   hideDeptsError();
   const deptId = document.getElementById('dept-form-select').value;
-  const sheetRaw = document.getElementById('dept-form-sheet').value.trim();
   const masterRaw = document.getElementById('dept-form-master').value.trim();
-  if(!sheetRaw){ showDeptsError('Paste a Sales Data Sheet link or ID first.'); return; }
   const btn = document.getElementById('dept-form-save');
   btn.disabled = true;
   try{
-    await saveDeptSheetConfig(deptId, sheetRaw, masterRaw);
+    await saveDeptSheetConfig(deptId, masterRaw);
     renderDeptsList();
-    renderDeptSelector();
     if(deptId === currentDept){
       renderSourceLine();
-      masterTabTitle = null; // force re-resolving the Master Sheet tab if one was just added
+      masterTabTitle = null; // force re-resolving the Master Sheet tab if one was just added/changed
       await refreshAllFromSheet(false); // pull this department's data right away rather than waiting for a manual Refresh
     }
   } catch(err){
-    showDeptsError(describeAccessError(err, "save this department's sheet"));
+    showDeptsError(describeAccessError(err, "save this department's Master Sheet"));
   } finally {
     btn.disabled = false;
   }
 }
-async function onClearDept(deptId){
-  if(!confirm(`Disconnect ${deptName(deptId)}'s Sheet from the dashboard? Anyone who can currently select ${deptName(deptId)} will see a "not connected" message instead, until it's reconnected.`)) return;
-  hideDeptsError();
+function renderSharedSheetStatus(){
+  const input = document.getElementById('shared-sheet-input');
+  if(input) input.value = SHARED_SHEET_ID || '';
+  const el = document.getElementById('shared-sheet-status');
+  if(!el) return;
+  if(!SHARED_SHEET_ID){
+    el.innerHTML = '<span style="color:var(--text-muted);">Not connected yet — every department shows "not connected" until this is set.</span>';
+    return;
+  }
+  const monthCount = Object.keys(SHARED_SALES_DATA).length;
+  let html = `✅ Connected · ${monthCount} month${monthCount === 1 ? '' : 's'} of data found across all departments`;
+  const unmatched = [...SHARED_SALES_UNMATCHED_DEPTS];
+  if(unmatched.length){
+    html += `<br><span style="color:var(--critical);">⚠️ ${unmatched.length} unrecognized "Department" value${unmatched.length === 1 ? '' : 's'} in the sheet were skipped: ${unmatched.map(t => `"${t}"`).join(', ')}. Check spelling against: ${DEPARTMENTS.map(d => d.name).join(', ')}.</span>`;
+  }
+  el.innerHTML = html;
+}
+async function onSaveSharedSheet(){
+  const errEl = document.getElementById('shared-sheet-error');
+  errEl.style.display = 'none';
+  const raw = document.getElementById('shared-sheet-input').value.trim();
+  if(!raw){ errEl.textContent = 'Paste a Sheet link or ID first.'; errEl.style.display = 'block'; return; }
+  const btn = document.getElementById('shared-sheet-save');
+  btn.disabled = true;
   try{
-    await clearDeptSheetConfig(deptId);
+    await saveSharedSalesSheet(raw);
+    await refreshAllFromSheet(false);
     renderDeptsList();
-    fillDeptForm(deptId);
     renderDeptSelector();
-    if(deptId === currentDept){ renderSourceLine(); renderMonthView(null); }
+    renderSourceLine();
+    renderSharedSheetStatus();
   } catch(err){
-    showDeptsError(describeAccessError(err, 'disconnect this department'));
+    errEl.textContent = describeAccessError(err, 'save the shared Sales Data Sheet');
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+  }
+}
+async function onClearSharedSheet(){
+  if(!confirm('Disconnect the shared Sales Data Sheet? Every department will show "not connected" until it (or a replacement) is reconnected.')) return;
+  const errEl = document.getElementById('shared-sheet-error');
+  errEl.style.display = 'none';
+  try{
+    await clearSharedSalesSheet();
+    SHARED_SALES_DATA = {};
+    renderDeptsList();
+    renderSourceLine();
+    renderSharedSheetStatus();
+    await refreshAllFromSheet(false);
+  } catch(err){
+    errEl.textContent = describeAccessError(err, 'disconnect the shared Sales Data Sheet');
+    errEl.style.display = 'block';
   }
 }
 function renderDeptsAdminView(){
   hideDeptsError();
+  const sharedErrEl = document.getElementById('shared-sheet-error');
+  if(sharedErrEl) sharedErrEl.style.display = 'none';
   renderDeptFormSelect();
   fillDeptForm(document.getElementById('dept-form-select').value || DEPARTMENTS[0].id);
   renderDeptsList();
+  renderSharedSheetStatus();
 }
 
 // ---------- NAV ----------
