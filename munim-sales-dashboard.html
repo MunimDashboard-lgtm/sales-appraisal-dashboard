@@ -337,6 +337,8 @@
       <span class="user-chip" id="user-chip" hidden></span>
       <button class="icon-btn" onclick="manualRefresh()">🔄 Refresh</button>
       <button class="icon-btn" onclick="resetAllData()">↺ Reset</button>
+      <button class="icon-btn" onclick="saveDefaultView()" title="Remembers your current department, team filter and comparison settings on this browser, and loads them automatically next time you sign in.">📌 Save as default</button>
+      <button class="icon-btn" onclick="clearDefaultView()">✖ Clear default</button>
       <button class="icon-btn" id="theme-toggle" onclick="toggleTheme()">🌙 Dark mode</button>
     </div>
   </header>
@@ -348,35 +350,71 @@
 
   <nav class="tabs" id="month-tabs"></nav>
 
+  <div class="card compare-card" id="team-filter-bar" hidden>
+    <h3>Team view</h3>
+    <div class="card-sub">Narrow every card, chart and KPI below — and the Comparison tab — to one manager's or team lead's team.</div>
+    <div class="range-picker">
+      <label>Manager <select id="team-filter-manager" onchange="onTeamFilterChange('manager', this.value)"></select></label>
+      <label>Team Lead <select id="team-filter-tl" onchange="onTeamFilterChange('tl', this.value)"></select></label>
+      <button class="reset-link" onclick="clearTeamFilter()">Clear</button>
+    </div>
+  </div>
+
   <section id="month-view">
     <div class="assumption-banner" id="dept-empty-state" hidden></div>
-    <div class="kpi-row" id="kpi-row"></div>
 
-    <div class="charts-row">
-      <div class="card">
-        <h3>Target vs. Achieved Revenue</h3>
-        <div class="card-sub">Filled bar = achieved revenue, colored by achievement status · dark tick = target</div>
-        <div id="chart-target-achieved"></div>
-        <div class="legend">
-          <div class="lg-item"><span class="swatch" style="background:var(--good)"></span> ≥80% of target</div>
-          <div class="lg-item"><span class="swatch" style="background:var(--warning)"></span> 50–79%</div>
-          <div class="lg-item"><span class="swatch" style="background:var(--critical)"></span> &lt;50%</div>
-          <div class="lg-item"><span class="swatch outline"></span> target marker</div>
+    <div id="sales-view-inner">
+      <div class="kpi-row" id="kpi-row"></div>
+
+      <div class="charts-row">
+        <div class="card">
+          <h3>Target vs. Achieved Revenue</h3>
+          <div class="card-sub">Filled bar = achieved revenue, colored by achievement status · dark tick = target</div>
+          <div id="chart-target-achieved"></div>
+          <div class="legend">
+            <div class="lg-item"><span class="swatch" style="background:var(--good)"></span> ≥80% of target</div>
+            <div class="lg-item"><span class="swatch" style="background:var(--warning)"></span> 50–79%</div>
+            <div class="lg-item"><span class="swatch" style="background:var(--critical)"></span> &lt;50%</div>
+            <div class="lg-item"><span class="swatch outline"></span> target marker</div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>% of Achievement by Manager</h3>
+          <div class="card-sub">Achieved revenue as a share of target</div>
+          <div id="chart-pct-achv"></div>
         </div>
       </div>
-      <div class="card">
-        <h3>% of Achievement by Manager</h3>
-        <div class="card-sub">Achieved revenue as a share of target</div>
-        <div id="chart-pct-achv"></div>
+
+      <div class="card-fields-bar">
+        <button class="icon-btn" id="card-fields-toggle" onclick="toggleCardFieldsPanel()">⚙ Customize fields</button>
+      </div>
+      <div class="card-fields-panel" id="card-fields-panel" hidden></div>
+
+      <div class="manager-grid" id="manager-grid"></div>
+    </div>
+
+    <div id="quality-view-inner" hidden>
+      <div class="card compare-card">
+        <h3>Quality filters</h3>
+        <div class="card-sub">Filter QA evaluations by department, manager, team lead or agent, following the team hierarchy — narrows every number below to just that scope for the selected month.</div>
+        <div class="access-error" id="quality-view-error"></div>
+        <div class="range-picker">
+          <label>Department <select id="q-filter-dept" onchange="onQualityFilterChange('dept', this.value)"></select></label>
+          <label>Manager <select id="q-filter-manager" onchange="onQualityFilterChange('manager', this.value)"></select></label>
+          <label>Team Lead <select id="q-filter-tl" onchange="onQualityFilterChange('tl', this.value)"></select></label>
+          <label>Agent <select id="q-filter-agent" onchange="onQualityFilterChange('agent', this.value)"></select></label>
+          <button class="reset-link" onclick="clearQualityFilters()">Clear filters</button>
+        </div>
+      </div>
+
+      <div class="kpi-row" id="quality-kpi-row"></div>
+
+      <div class="card compare-card">
+        <h3>Agent-wise quality scores</h3>
+        <div class="card-sub" id="quality-table-sub"></div>
+        <div id="quality-table-wrap"></div>
       </div>
     </div>
-
-    <div class="card-fields-bar">
-      <button class="icon-btn" id="card-fields-toggle" onclick="toggleCardFieldsPanel()">⚙ Customize fields</button>
-    </div>
-    <div class="card-fields-panel" id="card-fields-panel" hidden></div>
-
-    <div class="manager-grid" id="manager-grid"></div>
   </section>
 
   <section id="compare-view" hidden>
@@ -386,7 +424,15 @@
       <div class="range-picker">
         <label>From <select id="range-from" onchange="onRangeChange()"></select></label>
         <label>To <select id="range-to" onchange="onRangeChange()"></select></label>
+        <label>Compare by
+          <select id="compare-level" onchange="onCompareLevelChange(this.value)">
+            <option value="agent">Agent</option>
+            <option value="tl">Team Lead</option>
+            <option value="manager">Manager</option>
+          </select>
+        </label>
       </div>
+      <div class="card-sub" style="margin:8px 0 0;">Use the "Team view" filter above the month tabs to additionally narrow this to one manager's or team lead's team before comparing.</div>
     </div>
 
     <div class="card compare-card" id="trend-card">
@@ -400,12 +446,12 @@
     </div>
 
     <div class="card compare-card">
-      <h3>Manager-wise data</h3>
+      <h3 id="compare-table-title">Manager-wise data</h3>
       <div id="compare-table-wrap"></div>
     </div>
 
     <div class="card compare-card">
-      <h3>Average Appraisal Score by Manager</h3>
+      <h3 id="avg-score-title">Average Appraisal Score by Manager</h3>
       <div class="card-sub" id="avg-score-sub">The average is each manager's overall weighted Final Score (the same one shown on their card) across the selected months — for appraisal, rank managers by this.</div>
       <div id="avg-score-chart"></div>
       <div id="avg-score-table-wrap"></div>
@@ -448,6 +494,22 @@
         </div>
       </div>
       <div class="card-sub" id="shared-sheet-status" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="card compare-card">
+      <h3>Quality Data Sheet (for the Quality department)</h3>
+      <div class="card-sub">A separate sheet of QA evaluations — Month, Agent Name, Department, Manager, TL, Feedback Given, Fatal, Communication Score, Compliance Score, Overall Score — one row per evaluation, covering every department. Paste its link (or ID) here; it powers the "Quality" department's own filters and scorecards instead of the regular Target/Achieved cards above.</div>
+      <div class="access-error" id="quality-sheet-error"></div>
+      <div class="dept-form">
+        <label>Quality Data Sheet (link or ID)
+          <input type="text" id="quality-sheet-input" placeholder="https://docs.google.com/spreadsheets/d/...">
+        </label>
+        <div style="display:flex; gap:8px;">
+          <button class="icon-btn" id="quality-sheet-save" onclick="onSaveQualitySheet()">💾 Save Quality sheet</button>
+          <button class="reset-link" onclick="onClearQualitySheet()">Disconnect</button>
+        </div>
+      </div>
+      <div class="card-sub" id="quality-sheet-status" style="margin-top:10px;"></div>
     </div>
 
     <div class="card compare-card">
@@ -847,6 +909,9 @@ function applyDeptSheetConfigFromProps(props){
   const sharedId = props['dashSharedSalesSheet'] || '';
   if(sharedId !== SHARED_SHEET_ID) SHARED_SHEET_TAB = null; // force re-resolving the tab if the sheet changed
   SHARED_SHEET_ID = sharedId;
+  const qualityId = props['dashQualitySheet'] || '';
+  if(qualityId !== QUALITY_SHEET_ID) QUALITY_SHEET_TAB = null;
+  QUALITY_SHEET_ID = qualityId;
 }
 async function saveDeptSheetConfig(deptId, masterSheetIdRaw){
   const cfg = { masterSheetId: extractSheetId(masterSheetIdRaw), masterGid: '' };
@@ -1012,6 +1077,18 @@ let DEPT_SHEETS = JSON.parse(JSON.stringify(DEFAULT_DEPT_SHEETS)); // replaced b
 let currentDept = 'FST';
 let userAllowedDepts = null; // null = admin (sees every department); else a Set of allowed ids
 
+// ---------- TEAM HIERARCHY (Manager -> Team Lead -> Agent) ----------
+// Dashboard-wide scope filter — applies to both the month view (which cards/KPIs/charts show)
+// and the Comparison tab (which agents are in scope before grouping by compareLevel below).
+// '' means "no filter" (everyone). Reset whenever the department changes, since each
+// department has its own Manager/TL/Agent set.
+let teamFilterManager = '';
+let teamFilterTL = '';
+// Comparison tab grouping level — see renderCompareView(). 'agent' matches this dashboard's
+// original per-agent behavior; 'tl'/'manager' roll every agent's numbers up to their Team Lead
+// or Manager (summed for Target/Achieved, averaged for the KRA Final Score).
+let compareLevel = 'agent';
+
 // The one Sales Data Sheet every department reads from, filtered by its "Department" column —
 // see the SHARED SALES DATA section below. Set/cleared from "Manage Departments"; stored as
 // appProperties key dashSharedSalesSheet on CONFIG_ANCHOR_ID.
@@ -1052,6 +1129,7 @@ async function switchDepartment(deptId){
   if(deptId === currentDept) return;
   saveDeptState(currentDept);
   currentDept = deptId;
+  teamFilterManager = ''; teamFilterTL = ''; // each department has its own team structure
   const cached = loadDeptState(deptId);
   currentView = 'month';
   renderDeptSubtitle();
@@ -1131,7 +1209,11 @@ function sheetRange(title){
 
 // Fuzzy header -> canonical field map. Matches whichever wording that month's sheet used.
 const HEADER_PATTERNS = [
-  ['name', /^name$/i],
+  // Matches both the old bare "Name" header and the newer "Agent Name" wording — anchored so it
+  // never also swallows "TL Name"/"Manager Name" (those are matched by their own rules below).
+  ['name', /^(agent\s*)?name$/i],
+  ['tlName', /^tl\s*name$/i],
+  ['managerName', /^manager\s*name$/i],
   ['state', /^state$/i],
   ['city', /^city$/i],
   // Most-specific first: "Expansion Target Achieved" and "Expansion Target" would otherwise
@@ -1286,7 +1368,7 @@ function parseSharedSalesRows(rows){
     const bkey = monthKey + '|' + deptId;
     if(!buckets[bkey]) buckets[bkey] = {};
     const acc = buckets[bkey][nameText] || {
-      name: nameText, state: undefined, city: undefined,
+      name: nameText, state: undefined, city: undefined, tlName: undefined, managerName: undefined,
       target: 0, achieved: 0, noOfSale: 0, bdes: 0, salary: 0, otherCost: 0, attritionPct: null,
       avgBdeRevenue: null, expansionTarget: null, expansionTargetAchieved: null,
       m0Count: null, m1Count: null, m2Count: null, m2PlusCount: null,
@@ -1301,6 +1383,14 @@ function parseSharedSalesRows(rows){
     const city = (row[colMap.city] || '').trim();
     if(state) acc.state = state;
     if(city) acc.city = city;
+    // Hierarchy columns — Team Lead and Manager over this agent, used for the "team-wise" view
+    // filter and the Comparison tab's TL-wise/Manager-wise grouping. Same "latest non-blank
+    // cell wins" rule as state/city above; left undefined if the sheet doesn't track it yet for
+    // this row (most rows outside FST currently don't).
+    const tlName = colMap.tlName !== undefined ? (row[colMap.tlName] || '').trim() : '';
+    const managerName = colMap.managerName !== undefined ? (row[colMap.managerName] || '').trim() : '';
+    if(tlName) acc.tlName = tlName;
+    if(managerName) acc.managerName = managerName;
     ['target', 'achieved', 'noOfSale', 'bdes', 'salary', 'otherCost'].forEach(key => {
       const v = num(row, key);
       if(v !== null) acc[key] = v;
@@ -1319,6 +1409,7 @@ function parseSharedSalesRows(rows){
     const managers = Object.values(buckets[bkey]).map(acc => {
       const m = {
         name: acc.name, department: 'Sales', state: acc.state || '—', city: acc.city || '—',
+        tlName: acc.tlName || '', managerName: acc.managerName || '',
         target: acc.target, achieved: acc.achieved, noOfSale: acc.noOfSale, bdes: acc.bdes,
         salary: acc.salary, otherCost: acc.otherCost, attritionPct: acc.attritionPct,
         avgBdeRevenue: acc.avgBdeRevenue, expansionTarget: acc.expansionTarget,
@@ -1348,6 +1439,102 @@ async function fetchSharedSalesData(){
   const range = encodeURIComponent(`'${SHARED_SHEET_TAB.replace(/'/g, "''")}'!A1:BZ5000`);
   const data = await apiFetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHARED_SHEET_ID}/values/${range}?valueRenderOption=FORMATTED_VALUE`);
   return parseSharedSalesRows(data.values || []);
+}
+
+// ---------- QUALITY DATA SHEET (one sheet, every department, one row per QA evaluation) ----------
+// Entirely separate from the Sales Data Sheet above — the "Quality" department (see DEPARTMENTS)
+// doesn't have Target/Achieved/KRA cards at all; it reads this sheet instead and renders its own
+// filter-and-table view (renderQualityMonthView, further down). Columns: Month, Agent Name,
+// Department, Manager, TL, Feedback Given, Fatal, Communication Score, Compliance Score,
+// Overall Score — one row per QA evaluation, so an agent can have several rows in one month.
+let QUALITY_SHEET_ID = '';
+let QUALITY_SHEET_TAB = null; // resolved tab title, cached once per QUALITY_SHEET_ID
+let QUALITY_DATA = {}; // monthKey -> { label, sortKey, rows: [...] }
+
+const QUALITY_HEADER_PATTERNS = [
+  ['month', /^month$/i],
+  ['agent', /^agent\s*name$/i],
+  ['department', /^department$/i],
+  ['manager', /^manager(\s*name)?$/i],
+  ['tl', /^tl(\s*name)?$/i],
+  ['feedback', /feedback/i],
+  ['fatal', /^fatal$/i],
+  ['comm', /communication/i],
+  ['compliance', /compliance/i],
+  ['overall', /overall/i]
+];
+function matchQualityHeader(headerText){
+  for(const [key, re] of QUALITY_HEADER_PATTERNS) if(re.test(headerText)) return key;
+  return null;
+}
+// Cells like "80.00%" or "80%" -> 80; blank -> null (excluded from averages rather than
+// counted as 0).
+function qualityPctNum(raw){
+  const s = String(raw == null ? '' : raw).replace(/[%\s]/g, '');
+  if(s === '') return null;
+  const v = parseFloat(s);
+  return isNaN(v) ? null : v;
+}
+function qualityYesNo(raw){ return /^y/i.test(String(raw || '').trim()); }
+function parseQualityRows(rows){
+  const byMonth = {};
+  if(!rows.length) return byMonth;
+  const colMap = {};
+  rows[0].forEach((cell, i) => { const k = matchQualityHeader((cell || '').trim()); if(k && colMap[k] === undefined) colMap[k] = i; });
+  if(colMap.month === undefined || colMap.agent === undefined) return byMonth;
+  for(let r = 1; r < rows.length; r++){
+    const row = rows[r];
+    const monthText = (row[colMap.month] || '').trim();
+    const agent = (row[colMap.agent] || '').trim();
+    if(!monthText || !agent) continue;
+    const parsed = parseMonthCell(monthText);
+    if(!parsed) continue;
+    const monthKey = parsed.year + '-' + String(parsed.month).padStart(2, '0');
+    const label = MONTH_FULL[parsed.month] + ' ' + parsed.year;
+    if(!byMonth[monthKey]) byMonth[monthKey] = { label, sortKey: parsed.year * 100 + parsed.month, rows: [] };
+    byMonth[monthKey].rows.push({
+      agent,
+      department: colMap.department !== undefined ? (row[colMap.department] || '').trim() : '',
+      manager: colMap.manager !== undefined ? (row[colMap.manager] || '').trim() : '',
+      tl: colMap.tl !== undefined ? (row[colMap.tl] || '').trim() : '',
+      feedbackGiven: colMap.feedback !== undefined ? qualityYesNo(row[colMap.feedback]) : false,
+      fatal: colMap.fatal !== undefined ? qualityYesNo(row[colMap.fatal]) : false,
+      comm: colMap.comm !== undefined ? qualityPctNum(row[colMap.comm]) : null,
+      compliance: colMap.compliance !== undefined ? qualityPctNum(row[colMap.compliance]) : null,
+      overall: colMap.overall !== undefined ? qualityPctNum(row[colMap.overall]) : null
+    });
+  }
+  return byMonth;
+}
+// The Quality Sheet's data tab: whichever tab looks like the raw-data tab, falling back to the
+// first tab if none match — same pattern as the Sales/Master sheets above.
+async function resolveQualityTabTitle(sheetId){
+  const data = await apiFetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties`);
+  const sheets = data.sheets || [];
+  const named = sheets.find(s => /raw|data|quality/i.test(s.properties.title));
+  const chosen = named || sheets[0];
+  return chosen ? chosen.properties.title : null;
+}
+async function fetchQualityData(){
+  if(!QUALITY_SHEET_ID) return {};
+  if(!QUALITY_SHEET_TAB){
+    QUALITY_SHEET_TAB = await resolveQualityTabTitle(QUALITY_SHEET_ID);
+    if(!QUALITY_SHEET_TAB) throw new Error('Could not locate a tab in the Quality Data Sheet');
+  }
+  const range = encodeURIComponent(`'${QUALITY_SHEET_TAB.replace(/'/g, "''")}'!A1:Z20000`);
+  const data = await apiFetch(`https://sheets.googleapis.com/v4/spreadsheets/${QUALITY_SHEET_ID}/values/${range}?valueRenderOption=FORMATTED_VALUE`);
+  return parseQualityRows(data.values || []);
+}
+async function saveQualitySheet(sheetIdRaw){
+  const id = extractSheetId(sheetIdRaw);
+  await writeConfigProps({ dashQualitySheet: id });
+  QUALITY_SHEET_ID = id;
+  QUALITY_SHEET_TAB = null;
+}
+async function clearQualitySheet(){
+  await writeConfigProps({ dashQualitySheet: null });
+  QUALITY_SHEET_ID = '';
+  QUALITY_SHEET_TAB = null;
 }
 
 // ---------- MASTER SHEET (Leadership / Reporting / sub-metrics / other departments) ----------
@@ -1484,7 +1671,44 @@ function mergeMasterIntoMonths(){
 }
 function hasRevenueData(m){ return m.target > 0 || m.achieved > 0; }
 
+// Quality reads an entirely different sheet in an entirely different shape (one row per QA
+// evaluation, not one row per manager per month), so it gets its own refresh path rather than
+// threading a branch through every step of the Sales Data Sheet flow below.
+async function refreshQualityFromSheet(showAlertOnFail){
+  if(!QUALITY_SHEET_ID){
+    MONTH_TABS.length = 0;
+    Object.keys(MONTHS).forEach(k => delete MONTHS[k]);
+    currentMonth = null;
+    dataSource.status = 'unconfigured';
+    renderMonthTabs();
+    renderDataStatus();
+    renderMonthView(null);
+    return;
+  }
+  try{
+    QUALITY_DATA = await fetchQualityData();
+    const months = Object.keys(QUALITY_DATA)
+      .map(mk => ({ key: mk, label: QUALITY_DATA[mk].label, sortKey: QUALITY_DATA[mk].sortKey }))
+      .sort((a, b) => a.sortKey - b.sortKey);
+    MONTH_TABS.length = 0;
+    months.forEach(t => MONTH_TABS.push(t));
+    Object.keys(MONTHS).forEach(k => delete MONTHS[k]);
+    MONTH_TABS.forEach(t => { MONTHS[t.key] = { label: t.label, quality: true, rows: QUALITY_DATA[t.key].rows }; });
+    dataSource.status = MONTH_TABS.length ? 'live' : 'nodata';
+    dataSource.lastFetch = new Date();
+  } catch(err){
+    console.warn('Quality Data Sheet fetch failed', err);
+    dataSource.status = Object.keys(MONTHS).length ? 'partial' : 'error';
+    if(showAlertOnFail) alert('Could not reach the Quality Data Sheet. Showing the last saved data for now.');
+  }
+  renderMonthTabs();
+  renderDataStatus();
+  if(currentView === 'month') renderMonthView(currentMonth);
+  else if(currentView === 'compare') renderCompareView();
+}
+
 async function refreshAllFromSheet(showAlertOnFail){
+  if(currentDept === 'QUALITY'){ await refreshQualityFromSheet(showAlertOnFail); return; }
   if(!activeSheetId()){
     // No shared Sales Data Sheet connected yet — wipe any stale cached/seed data (so the status
     // line and the actual empty-state agree) and let renderMonthView show the "not connected"
@@ -1552,7 +1776,7 @@ function renderDataStatus(){
   else if(dataSource.status === 'partial') el.innerHTML = `🟡 Could not re-fetch the Sales Data Sheet — showing last saved data${masterBit}`;
   else if(dataSource.status === 'error') el.innerHTML = `🔴 Could not reach the Sheet — showing last saved snapshot${masterBit}`;
   else if(dataSource.status === 'nodata') el.innerHTML = `🟡 Sheet connected, but no rows found yet for ${deptName(currentDept)}${masterBit}`;
-  else if(dataSource.status === 'unconfigured') el.innerHTML = `⚪ No Sales Data Sheet connected yet`;
+  else if(dataSource.status === 'unconfigured') el.innerHTML = currentDept === 'QUALITY' ? `⚪ No Quality Data Sheet connected yet` : `⚪ No Sales Data Sheet connected yet`;
   else el.innerHTML = `⚪ Showing saved snapshot from Aug 21, 2026 · click Refresh to pull live data`;
 }
 
@@ -1667,12 +1891,79 @@ function computeAllScores(m, monthKey, monthData){
 let currentMonth = '2026-07';
 let currentView = 'month';
 
-function renderKpis(monthKey){
+// The agents visible in monthKey once the team-view filter (teamFilterManager/teamFilterTL)
+// is applied — used everywhere a card/KPI/chart previously read MONTHS[monthKey].managers
+// directly, so "team-wise" filtering doesn't need touching the underlying data or the
+// edit/reset/backend-logging code (those still look managers up by name across the full set).
+// Score calculations that need a company-wide baseline (productivityScore's max-per-BDE, the
+// prior month's BDE chain) intentionally keep reading the unfiltered month object instead.
+function scopedManagersForMonth(monthKey){
   const d = MONTHS[monthKey];
+  if(!d || !d.managers) return [];
+  if(!teamFilterManager && !teamFilterTL) return d.managers;
+  return d.managers.filter(m =>
+    (!teamFilterManager || (m.managerName || '') === teamFilterManager) &&
+    (!teamFilterTL || (m.tlName || '') === teamFilterTL));
+}
+// Manager -> Set of Team Leads, built from every month's data for the current department (the
+// org structure doesn't usually change month to month, so this looks across all of MONTH_TABS
+// rather than just the one currently open). Agents with neither field filled in yet (most
+// departments, so far) simply don't contribute — they still show up under "All".
+function buildAgentHierarchy(){
+  const tree = {};
+  MONTH_TABS.forEach(t => {
+    const mo = MONTHS[t.key];
+    if(!mo || !mo.managers) return;
+    mo.managers.forEach(m => {
+      const mgr = (m.managerName || '').trim();
+      const tl = (m.tlName || '').trim();
+      if(!mgr && !tl) return;
+      const key = mgr || '(no manager on file)';
+      if(!tree[key]) tree[key] = new Set();
+      if(tl) tree[key].add(tl);
+    });
+  });
+  return tree;
+}
+function renderTeamFilterBar(){
+  const bar = document.getElementById('team-filter-bar');
+  if(!bar) return;
+  const tree = buildAgentHierarchy();
+  const hasHierarchy = Object.keys(tree).length > 0;
+  const shouldShow = currentDept !== 'QUALITY' && (currentView === 'month' || currentView === 'compare') && hasHierarchy;
+  bar.hidden = !shouldShow;
+  if(!shouldShow) return;
+  const mgrSel = document.getElementById('team-filter-manager');
+  const tlSel = document.getElementById('team-filter-tl');
+  const managers = Object.keys(tree).sort();
+  mgrSel.innerHTML = '<option value="">All managers</option>' +
+    managers.map(m => `<option value="${m}" ${m === teamFilterManager ? 'selected' : ''}>${m}</option>`).join('');
+  const tlOptions = (teamFilterManager && tree[teamFilterManager])
+    ? [...tree[teamFilterManager]].sort()
+    : [...new Set(Object.values(tree).flatMap(s => [...s]))].sort();
+  tlSel.innerHTML = '<option value="">All team leads</option>' +
+    tlOptions.map(t => `<option value="${t}" ${t === teamFilterTL ? 'selected' : ''}>${t}</option>`).join('');
+}
+function onTeamFilterChange(level, value){
+  if(level === 'manager'){ teamFilterManager = value; teamFilterTL = ''; } // picking a manager resets the narrower TL pick
+  else { teamFilterTL = value; }
+  renderTeamFilterBar();
+  if(currentView === 'month') renderMonthView(currentMonth);
+  else if(currentView === 'compare') renderCompareView();
+}
+function clearTeamFilter(){
+  teamFilterManager = ''; teamFilterTL = '';
+  renderTeamFilterBar();
+  if(currentView === 'month') renderMonthView(currentMonth);
+  else if(currentView === 'compare') renderCompareView();
+}
+
+function renderKpis(monthKey){
   // These KPIs are revenue totals, so they only sum managers with actual sales data —
   // an other-department manager added via the Master Sheet (target/achieved = 0 until
-  // filled in) shouldn't dilute the team's revenue picture.
-  const salesManagers = d.managers.filter(hasRevenueData);
+  // filled in) shouldn't dilute the team's revenue picture. Scoped to the current team-view
+  // filter, so "Team Target"/"Team Achieved" etc. read as that team's totals, not everyone's.
+  const salesManagers = scopedManagersForMonth(monthKey).filter(hasRevenueData);
   const t = salesManagers.reduce((a,m)=>({
     target:a.target+m.target, achieved:a.achieved+m.achieved, bdes:a.bdes+m.bdes,
     totalCost:a.totalCost+m.totalCost, noOfSale:a.noOfSale+m.noOfSale
@@ -1680,8 +1971,8 @@ function renderKpis(monthKey){
   const pct = (t.achieved/t.target*100);
   const tabIdx = MONTH_TABS.findIndex(tb => tb.key === monthKey);
   const prevTab = tabIdx > 0 ? MONTH_TABS[tabIdx-1] : null;
-  const other = prevTab && MONTHS[prevTab.key] ? MONTHS[prevTab.key] : null;
-  const ot = other ? other.managers.filter(hasRevenueData).reduce((a,m)=>({target:a.target+m.target, achieved:a.achieved+m.achieved}), {target:0,achieved:0}) : null;
+  const otherManagers = prevTab && MONTHS[prevTab.key] ? scopedManagersForMonth(prevTab.key) : null;
+  const ot = otherManagers ? otherManagers.filter(hasRevenueData).reduce((a,m)=>({target:a.target+m.target, achieved:a.achieved+m.achieved}), {target:0,achieved:0}) : null;
   const opct = ot ? (ot.achieved/ot.target*100) : null;
   const delta = opct === null ? null : pct - opct;
   const prevLabel = prevTab ? prevTab.label.split(' ')[0] : '';
@@ -1706,8 +1997,7 @@ function renderKpis(monthKey){
 }
 
 function renderTargetAchievedChart(monthKey){
-  const d = MONTHS[monthKey];
-  const managers = d.managers.filter(hasRevenueData); // revenue chart — skip N/A managers
+  const managers = scopedManagersForMonth(monthKey).filter(hasRevenueData); // revenue chart — skip N/A managers
   if(!managers.length){ document.getElementById('chart-target-achieved').innerHTML = '<div style="color:var(--text-muted);font-size:12.5px;padding:8px 0;">No revenue data for this month yet.</div>'; return; }
   const maxVal = Math.max(...managers.map(m=>Math.max(m.target, m.achieved))) * 1.08;
   const html = managers.map((m,i) => {
@@ -1729,8 +2019,7 @@ function renderTargetAchievedChart(monthKey){
 }
 
 function renderPctAchvChart(monthKey){
-  const d = MONTHS[monthKey];
-  const managers = d.managers.filter(hasRevenueData);
+  const managers = scopedManagersForMonth(monthKey).filter(hasRevenueData);
   if(!managers.length){ document.getElementById('chart-pct-achv').innerHTML = '<div style="color:var(--text-muted);font-size:12.5px;padding:8px 0;">No revenue data for this month yet.</div>'; return; }
   const html = managers.map(m => {
     const w = Math.min(m.pctAchv, 100);
@@ -1837,8 +2126,8 @@ function renderSubMetrics(sm){
 }
 
 function renderManagerCards(monthKey){
-  const d = MONTHS[monthKey];
-  const html = d.managers.map((m,i) => {
+  const d = MONTHS[monthKey]; // kept unfiltered — computeAllScores needs the full-month baseline
+  const html = scopedManagersForMonth(monthKey).map((m,i) => {
     const {scores, weighted, pending, hasRevenue} = computeAllScores(m, monthKey, d);
     const initials = m.name.slice(0,2).toUpperCase();
     const color = COLORS[i % COLORS.length];
@@ -1995,8 +2284,136 @@ function resetAllData(){
   if(currentView === 'compare') renderCompareView();
 }
 
+// ---------- QUALITY DEPARTMENT VIEW ----------
+// '' in any of these means "All" at that level. Cascading: changing a broader level clears the
+// narrower ones below it (picking a different department while a manager was selected would
+// otherwise leave a manager filter from the wrong department silently in effect).
+let qualityFilter = { dept: '', manager: '', tl: '', agent: '' };
+function qualityRowsForMonth(monthKey){
+  const d = MONTHS[monthKey];
+  return (d && d.rows) ? d.rows : [];
+}
+function qualityScopedRows(monthKey){
+  return qualityRowsForMonth(monthKey).filter(r =>
+    (!qualityFilter.dept || r.department === qualityFilter.dept) &&
+    (!qualityFilter.manager || r.manager === qualityFilter.manager) &&
+    (!qualityFilter.tl || r.tl === qualityFilter.tl) &&
+    (!qualityFilter.agent || r.agent === qualityFilter.agent));
+}
+function uniqueSorted(list){ return [...new Set(list.filter(Boolean))].sort(); }
+function renderQualityFilterSelects(monthKey){
+  const rows = qualityRowsForMonth(monthKey);
+  const deptScope = rows;
+  const mgrScope = deptScope.filter(r => !qualityFilter.dept || r.department === qualityFilter.dept);
+  const tlScope = mgrScope.filter(r => !qualityFilter.manager || r.manager === qualityFilter.manager);
+  const agentScope = tlScope.filter(r => !qualityFilter.tl || r.tl === qualityFilter.tl);
+  const fill = (id, opts, current, allLabel) => {
+    const sel = document.getElementById(id);
+    if(!sel) return;
+    sel.innerHTML = `<option value="">${allLabel}</option>` +
+      opts.map(o => `<option value="${o}" ${o === current ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('');
+  };
+  fill('q-filter-dept', uniqueSorted(deptScope.map(r => r.department)), qualityFilter.dept, 'All departments');
+  fill('q-filter-manager', uniqueSorted(mgrScope.map(r => r.manager)), qualityFilter.manager, 'All managers');
+  fill('q-filter-tl', uniqueSorted(tlScope.map(r => r.tl)), qualityFilter.tl, 'All team leads');
+  fill('q-filter-agent', uniqueSorted(agentScope.map(r => r.agent)), qualityFilter.agent, 'All agents');
+}
+function onQualityFilterChange(level, value){
+  qualityFilter[level] = value;
+  if(level === 'dept'){ qualityFilter.manager = ''; qualityFilter.tl = ''; qualityFilter.agent = ''; }
+  else if(level === 'manager'){ qualityFilter.tl = ''; qualityFilter.agent = ''; }
+  else if(level === 'tl'){ qualityFilter.agent = ''; }
+  renderQualityMonthView(currentMonth);
+}
+function clearQualityFilters(){
+  qualityFilter = { dept: '', manager: '', tl: '', agent: '' };
+  renderQualityMonthView(currentMonth);
+}
+function renderQualityMonthView(monthKey){
+  const inner = document.getElementById('quality-view-inner');
+  const emptyEl = document.getElementById('dept-empty-state');
+  if(!monthKey || !MONTHS[monthKey]){
+    if(inner) inner.hidden = true;
+    if(emptyEl){
+      emptyEl.hidden = false;
+      emptyEl.innerHTML = !QUALITY_SHEET_ID
+        ? `No Quality Data Sheet has been connected yet. ${isAdmin() ? 'Add one from the "⚙️ Manage Departments" tab.' : 'Ask Amit to connect it from "Manage Departments".'}`
+        : `Still loading Quality data from Google Sheets — if this doesn't update in a moment, click "🔄 Refresh".`;
+    }
+    return;
+  }
+  if(emptyEl) emptyEl.hidden = true;
+  if(inner) inner.hidden = false;
+  renderQualityFilterSelects(monthKey);
+  const rows = qualityScopedRows(monthKey);
+
+  // Top summary — the unfiltered ("All") default view: every department's agent count, fatal
+  // count, and average Communication/Compliance for the month. Narrowing the filters above
+  // simply scopes these same four numbers down to that slice instead.
+  const agentCount = new Set(rows.map(r => r.agent)).size;
+  const fatalCount = rows.filter(r => r.fatal).length;
+  const avgOf = (key) => {
+    const vals = rows.map(r => r[key]).filter(v => v !== null && v !== undefined);
+    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  };
+  const avgComm = avgOf('comm'), avgCompliance = avgOf('compliance');
+  const kpis = [
+    { label: 'Total No. of Agents', value: agentCount },
+    { label: 'Total Fatal Count', value: fatalCount },
+    { label: 'Avg Communication Score', value: avgComm === null ? '—' : avgComm.toFixed(1) + '%' },
+    { label: 'Avg Compliance Score', value: avgCompliance === null ? '—' : avgCompliance.toFixed(1) + '%' }
+  ];
+  document.getElementById('quality-kpi-row').innerHTML = kpis.map(k => `
+    <div class="kpi"><div class="label">${k.label}</div><div class="value">${k.value}</div></div>`).join('');
+
+  // Detail table — one row per agent within the current filter scope: Agent Name, TL Name,
+  // Manager Name, Department, how many QA evaluations landed on them this month, and their
+  // average Communication/Compliance/Overall score across those evaluations.
+  const byAgent = {};
+  rows.forEach(r => {
+    if(!byAgent[r.agent]) byAgent[r.agent] = { agent: r.agent, tl: '', manager: '', department: '', count: 0, commSum: 0, commN: 0, compSum: 0, compN: 0, overallSum: 0, overallN: 0 };
+    const a = byAgent[r.agent];
+    a.count++;
+    if(r.tl) a.tl = r.tl;
+    if(r.manager) a.manager = r.manager;
+    if(r.department) a.department = r.department;
+    if(r.comm !== null){ a.commSum += r.comm; a.commN++; }
+    if(r.compliance !== null){ a.compSum += r.compliance; a.compN++; }
+    if(r.overall !== null){ a.overallSum += r.overall; a.overallN++; }
+  });
+  const agentRows = Object.values(byAgent).sort((x, y) => x.agent.localeCompare(y.agent));
+  document.getElementById('quality-table-sub').textContent = rows.length
+    ? `${agentRows.length} agent${agentRows.length === 1 ? '' : 's'} · ${rows.length} evaluation${rows.length === 1 ? '' : 's'} in ${MONTHS[monthKey].label}`
+    : 'No quality evaluations in scope for this month.';
+  document.getElementById('quality-table-wrap').innerHTML = !agentRows.length ? '' : `
+    <table class="data-table">
+      <thead><tr><th>Agent Name</th><th>TL Name</th><th>Manager Name</th><th>Department</th><th>Total Count</th><th>Avg Communication</th><th>Avg Compliance</th><th>Avg Overall</th></tr></thead>
+      <tbody>${agentRows.map(a => `
+        <tr>
+          <td class="name-cell">${escapeHtml(a.agent)}</td>
+          <td>${escapeHtml(a.tl || '—')}</td>
+          <td>${escapeHtml(a.manager || '—')}</td>
+          <td>${escapeHtml(a.department || '—')}</td>
+          <td>${a.count}</td>
+          <td>${a.commN ? (a.commSum / a.commN).toFixed(1) + '%' : '—'}</td>
+          <td>${a.compN ? (a.compSum / a.compN).toFixed(1) + '%' : '—'}</td>
+          <td>${a.overallN ? (a.overallSum / a.overallN).toFixed(1) + '%' : '—'}</td>
+        </tr>`).join('')}</tbody>
+    </table>`;
+}
+
 function renderMonthView(monthKey){
   currentMonth = monthKey;
+  renderTeamFilterBar();
+  const salesInner = document.getElementById('sales-view-inner');
+  const qualityInner = document.getElementById('quality-view-inner');
+  if(currentDept === 'QUALITY'){
+    if(salesInner) salesInner.hidden = true;
+    renderQualityMonthView(monthKey);
+    return;
+  }
+  if(qualityInner) qualityInner.hidden = true;
+  if(salesInner) salesInner.hidden = false;
   const emptyEl = document.getElementById('dept-empty-state');
   if(!monthKey || !MONTHS[monthKey]){
     if(emptyEl){
@@ -2082,9 +2499,45 @@ function tabsInRange(){
   return MONTH_TABS.slice(idxFrom, idxTo + 1).filter(t => MONTHS[t.key] && MONTHS[t.key].managers.length);
 }
 
+// ---------- COMPARISON GROUPING (Agent / Team Lead / Manager) ----------
+// compareLevel decides what one row/bar in the Comparison tab represents. 'agent' keeps this
+// dashboard's original per-agent behavior (a group of exactly one); 'tl'/'manager' roll every
+// agent sharing that Team Lead/Manager up into one row. teamFilterManager/teamFilterTL (the
+// "Team view" bar above the month tabs) narrow WHICH agents are in scope before that grouping
+// happens — so e.g. picking a Manager there and "Team Lead" here compares just that manager's
+// own TLs against each other.
+function groupLabelFor(m){
+  if(compareLevel === 'manager') return (m.managerName || '').trim() || 'Unassigned';
+  if(compareLevel === 'tl') return (m.tlName || '').trim() || 'Unassigned';
+  return m.name;
+}
+// Sums Target/Achieved/BDEs across every agent in the group for one month ("every month total
+// target and achievement as per their Team data"), and averages each member's own weighted KRA
+// Final Score. An empty list (this group had nobody in scope that month) comes back inert
+// (hasRevenue:false, avgScore:null) so callers can render "—" instead of a misleading 0/NaN.
+function aggregateGroup(monthKey, list){
+  const t = list.reduce((a,m)=>({target:a.target+m.target, achieved:a.achieved+m.achieved, bdes:a.bdes+m.bdes}), {target:0,achieved:0,bdes:0});
+  const hasRevenue = list.some(hasRevenueData);
+  const pctAchv = t.target > 0 ? (t.achieved/t.target*100) : 0;
+  const scores = list.map(m => computeAllScores(m, monthKey, MONTHS[monthKey]).weighted).filter(v => v !== null && v !== undefined && !isNaN(v));
+  const avgScore = scores.length ? scores.reduce((a,b)=>a+b,0)/scores.length : null;
+  return { target: t.target, achieved: t.achieved, bdes: t.bdes, pctAchv, avgScore, hasRevenue, memberCount: list.length };
+}
+function onCompareLevelChange(value){
+  compareLevel = value;
+  renderCompareView();
+}
+
 // Every chart/table here is driven by the same From→To range selected above — a new month
 // tab automatically gets its own bar/column once it has data and falls within that range.
 function renderCompareView(){
+  renderTeamFilterBar();
+  const levelSel = document.getElementById('compare-level');
+  if(levelSel) levelSel.value = compareLevel;
+  const levelWord = compareLevel === 'manager' ? 'Manager' : compareLevel === 'tl' ? 'Team Lead' : 'Agent';
+  const tableTitleEl = document.getElementById('compare-table-title');
+  if(tableTitleEl) tableTitleEl.textContent = `${levelWord}-wise data`;
+
   const tabs = tabsInRange();
   document.querySelector('#trend-card h3').textContent = tabs.length
     ? '% of Achievement — ' + tabs.map(t=>t.label).join(' vs. ')
@@ -2095,15 +2548,19 @@ function renderCompareView(){
     ? (tabs.length === 1 ? 'Only 1 month is in scope so far' : 'Only ' + tabs.length + ' months are in scope, so this shows a direct month-over-month read rather than a full trendline')
     : tabs.length + ' months in scope';
 
-  const names = [...new Set(tabs.flatMap(t => MONTHS[t.key].managers.map(m => m.name)))];
-  const maxPct = Math.max(1, ...tabs.flatMap(t => MONTHS[t.key].managers.map(m => m.pctAchv))) * 1.15;
+  const names = [...new Set(tabs.flatMap(t => scopedManagersForMonth(t.key).map(groupLabelFor)))];
+  // groups[nameIndex][tabIndex] — computed once so the chart's bar-height scale, the chart
+  // itself, and the table below all agree on the same aggregated numbers.
+  const groups = names.map(name => tabs.map(t =>
+    aggregateGroup(t.key, scopedManagersForMonth(t.key).filter(m => groupLabelFor(m) === name))));
+  const maxPct = Math.max(1, ...groups.flatMap(row => row.filter(g => g.hasRevenue).map(g => g.pctAchv))) * 1.15;
 
-  const html = names.map(name => {
-    const bars = tabs.map((t, i) => {
-      const m = MONTHS[t.key].managers.find(x => x.name === name);
-      const pct = m && hasRevenueData(m) ? m.pctAchv : null;
+  const html = names.map((name, ni) => {
+    const bars = tabs.map((t, ti) => {
+      const g = groups[ni][ti];
+      const pct = g.hasRevenue ? g.pctAchv : null;
       const h = pct === null ? 4 : Math.max(4, pct/maxPct*180);
-      const color = COLORS[i % COLORS.length];
+      const color = COLORS[ti % COLORS.length];
       const tip = `${name} · ${t.label}: ${pct===null ? 'no data' : pct.toFixed(1)+'%'}`;
       return `<div class="trend-bar" style="height:${h}px; background:${color}" data-tip="${tip}">${pct===null?'':`<span class="tval">${pct.toFixed(0)}%</span>`}</div>`;
     }).join('');
@@ -2116,31 +2573,34 @@ function renderCompareView(){
     `<div class="lg-item"><span class="swatch" style="background:${COLORS[i % COLORS.length]}"></span> ${t.label}</div>`).join('');
 
   const headerCells = tabs.map(t => `<th>${t.label} Target</th><th>${t.label} Achieved</th><th>${t.label} %</th>`).join('');
-  const rows = names.map(name => {
-    const cells = tabs.map(t => {
-      const m = MONTHS[t.key].managers.find(x => x.name === name);
-      return m ? `<td>${fmtINR(m.target)}</td><td>${fmtINR(m.achieved)}</td><td>${m.pctAchv.toFixed(1)}%</td>` : `<td>—</td><td>—</td><td>—</td>`;
+  const rows = names.map((name, ni) => {
+    const cells = tabs.map((t, ti) => {
+      const g = groups[ni][ti];
+      return g.hasRevenue ? `<td>${fmtINR(g.target)}</td><td>${fmtINR(g.achieved)}</td><td>${g.pctAchv.toFixed(1)}%</td>` : `<td>—</td><td>—</td><td>—</td>`;
     }).join('');
-    const bdeChain = tabs.map(t => { const m = MONTHS[t.key].managers.find(x=>x.name===name); return m ? m.bdes : '—'; }).join(' → ');
+    const bdeChain = tabs.map((t, ti) => { const g = groups[ni][ti]; return g.memberCount ? g.bdes : '—'; }).join(' → ');
     return `<tr><td class="name-cell">${name}</td>${cells}<td>${bdeChain}</td></tr>`;
   }).join('');
   document.getElementById('compare-table-wrap').innerHTML = `
     <table class="data-table">
-      <thead><tr><th>Manager</th>${headerCells}<th>BDEs (${tabs.map(t=>t.label.split(' ')[0]).join('→')})</th></tr></thead>
+      <thead><tr><th>${levelWord}</th>${headerCells}<th>BDEs (${tabs.map(t=>t.label.split(' ')[0]).join('→')})</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
 
   renderAvgScoreSection(tabs);
 }
 
-// Each manager's average Final Score (the same weighted KRA score shown on their card) across
-// every month in the selected From→To range — sorted best-to-worst so it can be read straight
-// off as an appraisal ranking. Months where a manager has no card yet are simply excluded from
-// their average rather than counted as a zero.
+// Each group's average Final Score (the mean of its members' own weighted KRA score, the same
+// number shown on their card) across every month in the selected From→To range — sorted
+// best-to-worst so it can be read straight off as an appraisal ranking. A group with nobody in
+// scope for a given month is simply excluded from its average rather than counted as a zero.
 function renderAvgScoreSection(tabs){
+  const levelWord = compareLevel === 'manager' ? 'Manager' : compareLevel === 'tl' ? 'Team Lead' : 'Agent';
+  const titleEl = document.getElementById('avg-score-title');
+  if(titleEl) titleEl.textContent = `Average Appraisal Score by ${levelWord}`;
   const subEl = document.getElementById('avg-score-sub');
   if(subEl) subEl.textContent = tabs.length
-    ? `Averaged across ${tabs.map(t => t.label).join(', ')} (${tabs.length} month${tabs.length > 1 ? 's' : ''}) — for appraisal, rank managers by this average.`
+    ? `Averaged across ${tabs.map(t => t.label).join(', ')} (${tabs.length} month${tabs.length > 1 ? 's' : ''}) — for appraisal, rank ${levelWord.toLowerCase()}s by this average.`
     : 'No months in the selected range have data yet.';
   if(!tabs.length){
     document.getElementById('avg-score-chart').innerHTML = '';
@@ -2148,13 +2608,12 @@ function renderAvgScoreSection(tabs){
     return;
   }
 
-  const names = [...new Set(tabs.flatMap(t => MONTHS[t.key].managers.map(m => m.name)))];
+  const names = [...new Set(tabs.flatMap(t => scopedManagersForMonth(t.key).map(groupLabelFor)))];
   const rows = names.map(name => {
     const perMonth = tabs.map(t => {
-      const m = MONTHS[t.key].managers.find(x => x.name === name);
-      if(!m) return null;
-      const { weighted } = computeAllScores(m, t.key, MONTHS[t.key]);
-      return weighted;
+      const list = scopedManagersForMonth(t.key).filter(m => groupLabelFor(m) === name);
+      if(!list.length) return null;
+      return aggregateGroup(t.key, list).avgScore;
     });
     const valid = perMonth.filter(v => v !== null && v !== undefined && !isNaN(v));
     const avg = valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
@@ -2176,7 +2635,7 @@ function renderAvgScoreSection(tabs){
   }).join('');
   document.getElementById('avg-score-table-wrap').innerHTML = `
     <table class="data-table">
-      <thead><tr><th>Manager</th>${headerCells}<th>Average score</th><th>Months counted</th></tr></thead>
+      <thead><tr><th>${levelWord}</th>${headerCells}<th>Average score</th><th>Months counted</th></tr></thead>
       <tbody>${bodyRows}</tbody>
     </table>`;
 }
@@ -2325,7 +2784,9 @@ function renderDeptsList(){
     const cfg = DEPT_SHEETS[d.id];
     const masterOk = cfg && cfg.masterSheetId;
     const monthsForDept = Object.keys(SHARED_SALES_DATA).filter(mk => (SHARED_SALES_DATA[mk].byDept[d.id] || []).length).length;
-    const salesCell = !SHARED_SHEET_ID
+    const salesCell = d.id === 'QUALITY'
+      ? '<span style="color:var(--text-muted);">uses the separate Quality Data Sheet below</span>'
+      : !SHARED_SHEET_ID
       ? '<span style="color:var(--text-muted);">no shared sheet connected</span>'
       : monthsForDept
         ? `✅ ${monthsForDept} month${monthsForDept === 1 ? '' : 's'} of data`
@@ -2417,14 +2878,61 @@ async function onClearSharedSheet(){
     errEl.style.display = 'block';
   }
 }
+function renderQualitySheetStatus(){
+  const input = document.getElementById('quality-sheet-input');
+  if(input) input.value = QUALITY_SHEET_ID || '';
+  const el = document.getElementById('quality-sheet-status');
+  if(!el) return;
+  if(!QUALITY_SHEET_ID){
+    el.innerHTML = '<span style="color:var(--text-muted);">Not connected yet — the Quality department shows "not connected" until this is set.</span>';
+    return;
+  }
+  const monthCount = Object.keys(QUALITY_DATA).length;
+  el.innerHTML = `✅ Connected · ${monthCount} month${monthCount === 1 ? '' : 's'} of QA data found`;
+}
+async function onSaveQualitySheet(){
+  const errEl = document.getElementById('quality-sheet-error');
+  errEl.style.display = 'none';
+  const raw = document.getElementById('quality-sheet-input').value.trim();
+  if(!raw){ errEl.textContent = 'Paste a Sheet link or ID first.'; errEl.style.display = 'block'; return; }
+  const btn = document.getElementById('quality-sheet-save');
+  btn.disabled = true;
+  try{
+    await saveQualitySheet(raw);
+    if(currentDept === 'QUALITY') await refreshAllFromSheet(false);
+    renderQualitySheetStatus();
+  } catch(err){
+    errEl.textContent = describeAccessError(err, 'save the Quality Data Sheet');
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+  }
+}
+async function onClearQualitySheet(){
+  if(!confirm('Disconnect the Quality Data Sheet? The Quality department will show "not connected" until it (or a replacement) is reconnected.')) return;
+  const errEl = document.getElementById('quality-sheet-error');
+  errEl.style.display = 'none';
+  try{
+    await clearQualitySheet();
+    QUALITY_DATA = {};
+    renderQualitySheetStatus();
+    if(currentDept === 'QUALITY') await refreshAllFromSheet(false);
+  } catch(err){
+    errEl.textContent = describeAccessError(err, 'disconnect the Quality Data Sheet');
+    errEl.style.display = 'block';
+  }
+}
 function renderDeptsAdminView(){
   hideDeptsError();
   const sharedErrEl = document.getElementById('shared-sheet-error');
   if(sharedErrEl) sharedErrEl.style.display = 'none';
+  const qualityErrEl = document.getElementById('quality-sheet-error');
+  if(qualityErrEl) qualityErrEl.style.display = 'none';
   renderDeptFormSelect();
   fillDeptForm(document.getElementById('dept-form-select').value || DEPARTMENTS[0].id);
   renderDeptsList();
   renderSharedSheetStatus();
+  renderQualitySheetStatus();
 }
 
 // ---------- PRESENCE ("Who's Online") + EDIT LOG ----------
@@ -2540,6 +3048,10 @@ document.getElementById('month-tabs').addEventListener('click', e => {
     document.getElementById('month-view').hidden = false;
     renderMonthView(btn.dataset.month);
   }
+  // Covers every branch above, including the ones (Manage Access/Departments, Who's Online,
+  // Edit Log) that don't otherwise touch it — the "Team view" filter bar only belongs on the
+  // month/Comparison tabs, so it needs hiding again whenever nav lands anywhere else.
+  renderTeamFilterBar();
   sendHeartbeat();
 });
 
@@ -2563,7 +3075,7 @@ function renderMonthTabs(){
   nav.innerHTML = MONTH_TABS.map(t =>
     `<button data-month="${t.key}" class="${currentView==='month' && currentMonth===t.key ? 'active':''}">${t.label}</button>`
   ).join('')
-    + (MONTH_TABS.length > 1 ? `<button data-view="compare" class="${currentView==='compare'?'active':''}">Comparison</button>` : '')
+    + (MONTH_TABS.length > 1 && currentDept !== 'QUALITY' ? `<button data-view="compare" class="${currentView==='compare'?'active':''}">Comparison</button>` : '')
     + (isAdmin() ? `<button data-view="access" class="${currentView==='access'?'active':''}">⚙️ Manage Access</button>` : '')
     + (isAdmin() ? `<button data-view="depts" class="${currentView==='depts'?'active':''}">⚙️ Manage Departments</button>` : '')
     + (isAdmin() ? `<button data-view="presence" class="${currentView==='presence'?'active':''}">🟢 Who's Online</button>` : '')
@@ -2574,6 +3086,41 @@ function renderMonthTabs(){
 // Everything that used to run immediately on page load now only runs once Google sign-in has
 // succeeded AND the signed-in account has been confirmed to have Viewer access to the Sales
 // Data Sheet (see runAccessCheck/enterApp above) — until then the page shows only #auth-gate.
+// ---------- DEFAULT VIEW (per-user, per-browser) ----------
+// "Customize" here means remembering the whole current view — department, team filter,
+// comparison grouping/quality filters, and which optional card fields are turned on — so it
+// reloads automatically next time this person signs in on this same browser. Stored in
+// localStorage keyed by the signed-in email, not on any Sheet — it's a personal convenience,
+// not shared data, so it doesn't need a round trip to Drive/Sheets to save or load.
+function defaultViewKey(){ return 'munimDashDefaultView_' + (currentUser ? currentUser.email.toLowerCase() : 'anon'); }
+function saveDefaultView(){
+  if(!currentUser){ alert('Sign in first.'); return; }
+  const prefs = {
+    dept: currentDept,
+    teamFilterManager, teamFilterTL, compareLevel,
+    qualityFilter: currentDept === 'QUALITY' ? qualityFilter : undefined,
+    visibleCardFields: [...visibleCardFields]
+  };
+  try{
+    localStorage.setItem(defaultViewKey(), JSON.stringify(prefs));
+    alert('Saved — this view (department, team filter, comparison settings) will load automatically next time you sign in on this browser.');
+  } catch(err){
+    alert('Could not save your default view in this browser: ' + (err.message || err));
+  }
+}
+function loadDefaultView(){
+  if(!currentUser) return null;
+  try{
+    const raw = localStorage.getItem(defaultViewKey());
+    return raw ? JSON.parse(raw) : null;
+  } catch(err){ return null; }
+}
+function clearDefaultView(){
+  if(!currentUser){ alert('Sign in first.'); return; }
+  try{ localStorage.removeItem(defaultViewKey()); } catch(err){}
+  alert('Cleared your saved default view. This browser will go back to the ordinary starting view next sign-in.');
+}
+
 function boot(){
   renderKraReference();
   // Snapshot today's globals (the FST offline-fallback seed) as FST's cached department state
@@ -2582,6 +3129,18 @@ function boot(){
   // nothing here changes unless the signed-in account's allowed departments say otherwise.
   saveDeptState('FST');
   currentDept = pickInitialDept();
+  // A saved "default view" (see saveDefaultView above) overrides the ordinary starting point —
+  // but only the department override actually needs validating against what this account is
+  // allowed to see; the rest are just display filters that no-op harmlessly if stale.
+  const prefs = loadDefaultView();
+  if(prefs){
+    if(prefs.dept && allowedDepartments().some(d => d.id === prefs.dept)) currentDept = prefs.dept;
+    teamFilterManager = prefs.teamFilterManager || '';
+    teamFilterTL = prefs.teamFilterTL || '';
+    compareLevel = prefs.compareLevel || 'agent';
+    if(prefs.qualityFilter) qualityFilter = Object.assign({ dept:'', manager:'', tl:'', agent:'' }, prefs.qualityFilter);
+    if(Array.isArray(prefs.visibleCardFields)) visibleCardFields = new Set(prefs.visibleCardFields);
+  }
   if(currentDept !== 'FST') loadDeptState(currentDept);
   renderDeptSelector();
   renderDeptSubtitle();
