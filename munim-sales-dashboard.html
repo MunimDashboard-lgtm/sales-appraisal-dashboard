@@ -1058,7 +1058,18 @@ const HEADER_PATTERNS = [
   ['m2PlusCount', /^m2\+/i],
   ['m0Count', /^m0\s/i],
   ['m1Count', /^m1\s/i],
-  ['m2Count', /^m2\s/i]
+  ['m2Count', /^m2\s/i],
+  // "Sales M0 / M1 / M2 / M2+ / M3+ / -M1 / -M2 / -M3+" — per-cohort sales counts (by agent
+  // tenure, and by how many months before/after joining). Plus- and minus-variants checked
+  // before their bare counterparts so e.g. "Sales M2+" doesn't fall into the "Sales M2" rule.
+  ['salesM2Plus', /^sales\s*m2\+/i],
+  ['salesM3Plus', /^sales\s*m3\+/i],
+  ['salesMinus3Plus', /^sales\s*-\s*m3\+?/i],
+  ['salesMinus2', /^sales\s*-\s*m2\b/i],
+  ['salesMinus1', /^sales\s*-\s*m1\b/i],
+  ['salesM0', /^sales\s*m0\b/i],
+  ['salesM1', /^sales\s*m1\b/i],
+  ['salesM2', /^sales\s*m2\b/i]
 ];
 function matchHeader(headerText){
   for(const [key, re] of HEADER_PATTERNS) if(re.test(headerText)) return key;
@@ -1151,7 +1162,9 @@ function parseSharedSalesRows(rows){
   // filter) — kept null rather than 0 when blank, so a card can simply omit a field that
   // isn't tracked instead of showing a misleading zero.
   const OPTIONAL_NUM_FIELDS = ['avgBdeRevenue', 'expansionTarget', 'expansionTargetAchieved',
-    'm0Count', 'm1Count', 'm2Count', 'm2PlusCount', 'avgSalesPerExec', 'avgMeetingPerExec'];
+    'm0Count', 'm1Count', 'm2Count', 'm2PlusCount', 'avgSalesPerExec', 'avgMeetingPerExec',
+    'salesM0', 'salesM1', 'salesM2', 'salesM2Plus', 'salesM3Plus',
+    'salesMinus1', 'salesMinus2', 'salesMinus3Plus'];
   const buckets = {}; // "monthKey|deptId" -> { name -> latest known raw fields for that manager }
   for(let r = 1; r < rows.length; r++){
     const row = rows[r];
@@ -1175,7 +1188,9 @@ function parseSharedSalesRows(rows){
       target: 0, achieved: 0, noOfSale: 0, bdes: 0, salary: 0, otherCost: 0, attritionPct: null,
       avgBdeRevenue: null, expansionTarget: null, expansionTargetAchieved: null,
       m0Count: null, m1Count: null, m2Count: null, m2PlusCount: null,
-      avgSalesPerExec: null, avgMeetingPerExec: null
+      avgSalesPerExec: null, avgMeetingPerExec: null,
+      salesM0: null, salesM1: null, salesM2: null, salesM2Plus: null, salesM3Plus: null,
+      salesMinus1: null, salesMinus2: null, salesMinus3Plus: null
     };
     // Two+ rows for the same manager/month/department (e.g. a duplicate entry) — the latest
     // non-blank cell in each column wins rather than summing: this flat sheet is one row per
@@ -1207,7 +1222,10 @@ function parseSharedSalesRows(rows){
         avgBdeRevenue: acc.avgBdeRevenue, expansionTarget: acc.expansionTarget,
         expansionTargetAchieved: acc.expansionTargetAchieved,
         m0Count: acc.m0Count, m1Count: acc.m1Count, m2Count: acc.m2Count, m2PlusCount: acc.m2PlusCount,
-        avgSalesPerExec: acc.avgSalesPerExec, avgMeetingPerExec: acc.avgMeetingPerExec
+        avgSalesPerExec: acc.avgSalesPerExec, avgMeetingPerExec: acc.avgMeetingPerExec,
+        salesM0: acc.salesM0, salesM1: acc.salesM1, salesM2: acc.salesM2,
+        salesM2Plus: acc.salesM2Plus, salesM3Plus: acc.salesM3Plus,
+        salesMinus1: acc.salesMinus1, salesMinus2: acc.salesMinus2, salesMinus3Plus: acc.salesMinus3Plus
       };
       recomputeManager(m);
       return m;
@@ -1222,7 +1240,10 @@ async function fetchSharedSalesData(){
     SHARED_SHEET_TAB = await resolveSharedSalesTabTitle(SHARED_SHEET_ID);
     if(!SHARED_SHEET_TAB) throw new Error('Could not locate a tab in the Sales Data Sheet');
   }
-  const range = encodeURIComponent(`'${SHARED_SHEET_TAB.replace(/'/g, "''")}'!A1:Z5000`);
+  // Widened from A1:Z5000 — the sheet's columns now run past Z (M2+ Agent Count, Expansion
+  // Target(Achieved), Salary/Other/Total Cost, ROI% all live at AA-AG or beyond), and Z would
+  // silently truncate all of those out of the fetched rows before header-matching ever sees them.
+  const range = encodeURIComponent(`'${SHARED_SHEET_TAB.replace(/'/g, "''")}'!A1:BZ5000`);
   const data = await apiFetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHARED_SHEET_ID}/values/${range}?valueRenderOption=FORMATTED_VALUE`);
   return parseSharedSalesRows(data.values || []);
 }
@@ -1648,7 +1669,18 @@ const CARD_FIELD_DEFS = [
   {key:'m1Count', label:'M1 Agent Count', get:m=>m.m1Count, fmt:v=>fmtNum(v)},
   {key:'m2Count', label:'M2 Agent Count', get:m=>m.m2Count, fmt:v=>fmtNum(v)},
   {key:'m2PlusCount', label:'M2+ Agent Count', get:m=>m.m2PlusCount, fmt:v=>fmtNum(v)},
-  {key:'attritionPct', label:'Attrition %', get:m=>m.attritionPct, fmt:v=>v.toFixed(1)+'%'}
+  {key:'attritionPct', label:'Attrition %', get:m=>m.attritionPct, fmt:v=>v.toFixed(1)+'%'},
+  // Per-cohort sales counts added to the Sales Data Sheet — how many sales came from agents
+  // at each tenure milestone (M0/M1/M2/M2+/M3+), and from agents that many months before or
+  // after that milestone (-M1/-M2/-M3+).
+  {key:'salesM0', label:'Sales – M0', get:m=>m.salesM0, fmt:v=>fmtNum(v)},
+  {key:'salesM1', label:'Sales – M1', get:m=>m.salesM1, fmt:v=>fmtNum(v)},
+  {key:'salesM2', label:'Sales – M2', get:m=>m.salesM2, fmt:v=>fmtNum(v)},
+  {key:'salesM2Plus', label:'Sales – M2+', get:m=>m.salesM2Plus, fmt:v=>fmtNum(v)},
+  {key:'salesM3Plus', label:'Sales – M3+', get:m=>m.salesM3Plus, fmt:v=>fmtNum(v)},
+  {key:'salesMinus1', label:'Sales – -M1', get:m=>m.salesMinus1, fmt:v=>fmtNum(v)},
+  {key:'salesMinus2', label:'Sales – -M2', get:m=>m.salesMinus2, fmt:v=>fmtNum(v)},
+  {key:'salesMinus3Plus', label:'Sales – -M3+', get:m=>m.salesMinus3Plus, fmt:v=>fmtNum(v)}
 ];
 // Session-only, like manualScores/openEditPanels above — resets on reload, never written to
 // any Sheet. Empty by default = "keep the same what right now" for every new viewer.
