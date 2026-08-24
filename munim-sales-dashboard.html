@@ -471,6 +471,30 @@
     </div>
   </section>
 
+  <section id="presence-view" hidden>
+    <div class="card compare-card">
+      <h3>🟢 Who's online</h3>
+      <div class="card-sub">Everyone who has signed in to this dashboard, and how recently they were last active — refreshes automatically every 20 seconds. This is presence only, tracked entirely inside the dashboard; nothing here comes from Gmail or Google Cloud Console. "Online" means a heartbeat landed in the last ~55 seconds; "Away" means their tab is likely still open but idle or backgrounded; "Offline" means no heartbeat in over 5 minutes (they likely closed the tab).</div>
+      <div class="access-error" id="presence-error"></div>
+      <div style="display:flex; justify-content:flex-end; margin-bottom:6px;">
+        <button class="reset-link" onclick="renderPresenceView()">↻ Refresh now</button>
+      </div>
+      <div id="presence-list"></div>
+    </div>
+  </section>
+
+  <section id="editlog-view" hidden>
+    <div class="card compare-card">
+      <h3>📝 Edit log</h3>
+      <div class="card-sub">Every figure or KRA score edited from this dashboard, most recent first — who edited it, which manager/month it was on, and the old vs. new value. Only edits made after this feature shipped are captured here; nothing retroactive. Session-only edits are session-only until someone actually changes a value — that's the moment this log records.</div>
+      <div class="access-error" id="editlog-error"></div>
+      <div style="display:flex; justify-content:flex-end; margin-bottom:6px;">
+        <button class="reset-link" onclick="renderEditLogView()">↻ Refresh now</button>
+      </div>
+      <div id="editlog-list"></div>
+    </div>
+  </section>
+
   <section>
     <div class="section-title">KRA Weightage Framework (reference)</div>
     <div class="section-sub">From the "Sales Manager KRA &amp; Weightage Structure" document — solid bars are auto-calculated in this dashboard, hatched bars need manual HR input</div>
@@ -563,6 +587,82 @@ const OAUTH_SCOPE = 'https://www.googleapis.com/auth/spreadsheets.readonly https
 // up as) an entry on the allow-list itself.
 const ADMIN_EMAILS = ['amit.choudhary@themunim.com'];
 function isAdmin(){ return !!currentUser && ADMIN_EMAILS.includes((currentUser.email || '').toLowerCase()); }
+
+// ---------- ACTIVITY BACKEND (who's online + edit log) ----------
+// A small Google Apps Script Web App (separate from the Sheets/Drive APIs above) that keeps
+// its own tiny Google Sheet ("Munim Dashboard Activity Log") with two tabs: one row per
+// currently-signed-in person (Presence, upserted on every heartbeat) and an append-only log of
+// every field/score edit made from this dashboard (EditLog). This lets admins see who's online
+// and what's been edited entirely inside the dashboard's own "🟢 Who's Online" / "📝 Edit Log"
+// tabs below, with no need to open Google Cloud Console, Gmail, or the Sheet itself. SECRET is
+// a lightweight shared value, not real security — anyone with it (or with browser devtools open
+// on this page) could call the endpoint directly, but the endpoint only ever exposes presence/
+// edit-log rows, never Sheet data or sign-in credentials, so that's an acceptable trade-off here.
+const ACTIVITY_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbyZbkV_wIxc_UpYruSEr4G95b0zD7DTpvJUKqG_It-GJiDd50kyqC_V1_gvG0OPTrs8mg/exec';
+const ACTIVITY_SECRET = 'munim-dash-9f2ac174';
+const HEARTBEAT_INTERVAL_MS = 20000;
+// A presence row is only considered "online" while heartbeats keep landing at least this often;
+// PRESENCE_STALE_MS gives a little slack over HEARTBEAT_INTERVAL_MS for one missed beat.
+const PRESENCE_STALE_MS = 55000;
+
+// Fire-and-forget POST — never throws into the caller and never blocks the UI. If the backend
+// is briefly unreachable, presence/edit-log data is just missing for that beat; nothing else
+// about the dashboard depends on this succeeding.
+function activityPost(payload){
+  try{
+    fetch(ACTIVITY_BACKEND_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' }, // avoids a CORS preflight; Apps Script reads the raw body regardless of declared type
+      body: JSON.stringify(Object.assign({ secret: ACTIVITY_SECRET }, payload))
+    }).catch(err => console.warn('[activity] post failed', err));
+  } catch(err){ console.warn('[activity] post threw', err); }
+}
+async function activityGet(action, extra){
+  const params = new URLSearchParams(Object.assign({ action: action, secret: ACTIVITY_SECRET }, extra || {}));
+  const res = await fetch(ACTIVITY_BACKEND_URL + '?' + params.toString());
+  if(!res.ok) throw new Error('activity HTTP ' + res.status);
+  const data = await res.json();
+  if(data && data.error) throw new Error(data.error);
+  return data;
+}
+function currentViewLabel(){
+  if(currentView === 'month'){ const t = MONTH_TABS.find(x=>x.key===currentMonth); return t ? t.label : currentMonth; }
+  if(currentView === 'compare') return 'Comparison';
+  if(currentView === 'access') return '⚙️ Manage Access';
+  if(currentView === 'depts') return '⚙️ Manage Departments';
+  if(currentView === 'presence') return "🟢 Who's Online";
+  if(currentView === 'editlog') return '📝 Edit Log';
+  return currentView;
+}
+let heartbeatTimer = null;
+function sendHeartbeat(){
+  if(!currentUser) return;
+  activityPost({
+    action: 'heartbeat',
+    email: currentUser.email,
+    name: currentUser.name || currentUser.email,
+    view: currentViewLabel(),
+    dept: deptName(currentDept)
+  });
+}
+function startHeartbeatLoop(){
+  sendHeartbeat();
+  if(heartbeatTimer) clearInterval(heartbeatTimer);
+  heartbeatTimer = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
+}
+function logEditToBackend(monthKey, managerName, field, oldValue, newValue){
+  if(!currentUser) return;
+  activityPost({
+    action: 'logEdit',
+    email: currentUser.email,
+    name: currentUser.name || currentUser.email,
+    month: monthKey,
+    manager: managerName,
+    field: field,
+    oldValue: oldValue === null || oldValue === undefined ? '' : oldValue,
+    newValue: newValue === null || newValue === undefined ? '' : newValue
+  });
+}
 
 let tokenClient = null;
 let accessToken = null;
@@ -868,6 +968,7 @@ function enterApp(){
   document.getElementById('app-root').style.display = 'block';
   renderUserChip();
   boot();
+  startHeartbeatLoop();
 }
 
 // ---------- MULTI-DEPARTMENT SUPPORT ----------
@@ -959,6 +1060,7 @@ async function switchDepartment(deptId){
   renderDataStatus();
   renderMonthView(currentMonth);
   if(!cached) await refreshAllFromSheet(false);
+  sendHeartbeat();
 }
 
 // ---------- LIVE GOOGLE SHEET FETCH ----------
@@ -1845,19 +1947,24 @@ function onEditPanelToggle(monthKey, name, isOpen){
 }
 
 function onManualInput(monthKey, name, key, val){
+  const oldVal = getManualScore(monthKey, name, key);
   setManualScore(monthKey, name, key, val);
+  const newVal = getManualScore(monthKey, name, key);
+  if(oldVal !== newVal) logEditToBackend(monthKey, name, key, oldVal, newVal);
   renderManagerCards(monthKey);
 }
 
 function onEditField(monthKey, name, field, rawVal){
   const m = MONTHS[monthKey].managers.find(x => x.name === name);
   if(!m) return;
+  const oldVal = m[field];
   if(field === 'attritionPct' && rawVal === ''){
     m.attritionPct = null;
   } else {
     const n = Number(rawVal);
     m[field] = isNaN(n) ? m[field] : n;
   }
+  if(m[field] !== oldVal) logEditToBackend(monthKey, name, field, oldVal, m[field]);
   recomputeManager(m);
   recomputePrevBdesChain(); // keeps every month's "prior BDE count" reference in sync
   renderMonthView(currentMonth);
@@ -2320,41 +2427,120 @@ function renderDeptsAdminView(){
   renderSharedSheetStatus();
 }
 
+// ---------- PRESENCE ("Who's Online") + EDIT LOG ----------
+function escapeHtml(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function timeAgoLabel(ms){
+  if(!ms) return 'never';
+  const diffSec = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  if(diffSec < 5) return 'just now';
+  if(diffSec < 60) return diffSec + 's ago';
+  const diffMin = Math.round(diffSec / 60);
+  if(diffMin < 60) return diffMin + (diffMin === 1 ? ' min ago' : ' mins ago');
+  const diffHr = Math.round(diffMin / 60);
+  if(diffHr < 24) return diffHr + (diffHr === 1 ? ' hour ago' : ' hours ago');
+  const diffDay = Math.round(diffHr / 24);
+  return diffDay + (diffDay === 1 ? ' day ago' : ' days ago');
+}
+let presencePollTimer = null;
+async function renderPresenceView(){
+  const errEl = document.getElementById('presence-error');
+  const listEl = document.getElementById('presence-list');
+  if(errEl) errEl.style.display = 'none';
+  if(presencePollTimer) clearInterval(presencePollTimer);
+  try{
+    const data = await activityGet('presence');
+    const rows = (data.rows || []).slice().sort((a,b) => (b.lastSeen||0) - (a.lastSeen||0));
+    if(!rows.length){
+      listEl.innerHTML = '<div style="color:var(--text-muted);font-size:12.5px;">No one has signed in since this feature went live.</div>';
+    } else {
+      const html = rows.map(r => {
+        const diff = Date.now() - r.lastSeen;
+        const status = diff < PRESENCE_STALE_MS ? 'online' : diff < 5*60000 ? 'away' : 'offline';
+        const dot = status === 'online' ? '🟢' : status === 'away' ? '🟡' : '⚪';
+        return `<tr>
+          <td class="name-cell">${dot} ${escapeHtml(r.name || r.email)}</td>
+          <td>${escapeHtml(r.email)}</td>
+          <td>${escapeHtml(r.dept || '')}</td>
+          <td>${escapeHtml(r.view || '')}</td>
+          <td>${timeAgoLabel(r.lastSeen)}</td>
+        </tr>`;
+      }).join('');
+      listEl.innerHTML = `<table class="data-table"><thead><tr><th>Person</th><th>Email</th><th>Department</th><th>Viewing</th><th>Last active</th></tr></thead><tbody>${html}</tbody></table>`;
+    }
+  } catch(err){
+    if(errEl){ errEl.textContent = 'Could not load presence data: ' + (err.message || err); errEl.style.display = 'block'; }
+  }
+  // Keep the list fresh while this tab is open, without needing a manual refresh click.
+  presencePollTimer = setInterval(() => { if(currentView === 'presence') renderPresenceView(); }, HEARTBEAT_INTERVAL_MS);
+}
+let editLogPollTimer = null;
+async function renderEditLogView(){
+  const errEl = document.getElementById('editlog-error');
+  const listEl = document.getElementById('editlog-list');
+  if(errEl) errEl.style.display = 'none';
+  if(editLogPollTimer) clearInterval(editLogPollTimer);
+  try{
+    const data = await activityGet('editlog', { limit: 300 });
+    const rows = data.rows || [];
+    if(!rows.length){
+      listEl.innerHTML = '<div style="color:var(--text-muted);font-size:12.5px;">No edits recorded yet.</div>';
+    } else {
+      const html = rows.map(r => `<tr>
+          <td>${timeAgoLabel(r.ts)}</td>
+          <td class="name-cell">${escapeHtml(r.name || r.email)}</td>
+          <td>${escapeHtml(r.month || '')}</td>
+          <td>${escapeHtml(r.manager || '')}</td>
+          <td>${escapeHtml(r.field || '')}</td>
+          <td>${escapeHtml(r.oldValue)}</td>
+          <td>${escapeHtml(r.newValue)}</td>
+        </tr>`).join('');
+      listEl.innerHTML = `<table class="data-table"><thead><tr><th>When</th><th>Edited by</th><th>Month</th><th>Manager</th><th>Field</th><th>Old value</th><th>New value</th></tr></thead><tbody>${html}</tbody></table>`;
+    }
+  } catch(err){
+    if(errEl){ errEl.textContent = 'Could not load edit log: ' + (err.message || err); errEl.style.display = 'block'; }
+  }
+  editLogPollTimer = setInterval(() => { if(currentView === 'editlog') renderEditLogView(); }, HEARTBEAT_INTERVAL_MS);
+}
+
 // ---------- NAV ----------
+const ALL_VIEW_SECTION_IDS = ['month-view','compare-view','access-view','depts-view','presence-view','editlog-view'];
+function hideAllViewSections(){
+  ALL_VIEW_SECTION_IDS.forEach(id => { const el = document.getElementById(id); if(el) el.hidden = true; });
+}
 document.getElementById('month-tabs').addEventListener('click', e => {
   const btn = e.target.closest('button');
   if(!btn) return;
   document.querySelectorAll('#month-tabs button').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
+  hideAllViewSections();
   if(btn.dataset.view === 'compare'){
     currentView = 'compare';
-    document.getElementById('month-view').hidden = true;
     document.getElementById('compare-view').hidden = false;
-    document.getElementById('access-view').hidden = true;
-    document.getElementById('depts-view').hidden = true;
     renderCompareView();
   } else if(btn.dataset.view === 'access'){
     currentView = 'access';
-    document.getElementById('month-view').hidden = true;
-    document.getElementById('compare-view').hidden = true;
     document.getElementById('access-view').hidden = false;
-    document.getElementById('depts-view').hidden = true;
     renderAccessView();
   } else if(btn.dataset.view === 'depts'){
     currentView = 'depts';
-    document.getElementById('month-view').hidden = true;
-    document.getElementById('compare-view').hidden = true;
-    document.getElementById('access-view').hidden = true;
     document.getElementById('depts-view').hidden = false;
     renderDeptsAdminView();
+  } else if(btn.dataset.view === 'presence'){
+    currentView = 'presence';
+    document.getElementById('presence-view').hidden = false;
+    renderPresenceView();
+  } else if(btn.dataset.view === 'editlog'){
+    currentView = 'editlog';
+    document.getElementById('editlog-view').hidden = false;
+    renderEditLogView();
   } else {
     currentView = 'month';
     document.getElementById('month-view').hidden = false;
-    document.getElementById('compare-view').hidden = true;
-    document.getElementById('access-view').hidden = true;
-    document.getElementById('depts-view').hidden = true;
     renderMonthView(btn.dataset.month);
   }
+  sendHeartbeat();
 });
 
 function toggleTheme(){
@@ -2366,6 +2552,8 @@ function toggleTheme(){
   else if(currentView === 'compare') renderCompareView();
   else if(currentView === 'access') renderAccessView();
   else if(currentView === 'depts') renderDeptsAdminView();
+  else if(currentView === 'presence') renderPresenceView();
+  else if(currentView === 'editlog') renderEditLogView();
 }
 
 function renderMonthTabs(){
@@ -2377,7 +2565,9 @@ function renderMonthTabs(){
   ).join('')
     + (MONTH_TABS.length > 1 ? `<button data-view="compare" class="${currentView==='compare'?'active':''}">Comparison</button>` : '')
     + (isAdmin() ? `<button data-view="access" class="${currentView==='access'?'active':''}">⚙️ Manage Access</button>` : '')
-    + (isAdmin() ? `<button data-view="depts" class="${currentView==='depts'?'active':''}">⚙️ Manage Departments</button>` : '');
+    + (isAdmin() ? `<button data-view="depts" class="${currentView==='depts'?'active':''}">⚙️ Manage Departments</button>` : '')
+    + (isAdmin() ? `<button data-view="presence" class="${currentView==='presence'?'active':''}">🟢 Who's Online</button>` : '')
+    + (isAdmin() ? `<button data-view="editlog" class="${currentView==='editlog'?'active':''}">📝 Edit Log</button>` : '');
 }
 
 // ---------- INIT ----------
