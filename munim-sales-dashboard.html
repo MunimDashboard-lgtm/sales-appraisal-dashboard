@@ -2028,9 +2028,11 @@ function renderKpis(monthKey){
   const pct = (t.achieved/t.target*100);
   const tabIdx = MONTH_TABS.findIndex(tb => tb.key === monthKey);
   const prevTab = tabIdx > 0 ? MONTH_TABS[tabIdx-1] : null;
-  const otherManagers = prevTab && MONTHS[prevTab.key] ? scopedManagersForMonth(prevTab.key) : null;
-  const ot = otherManagers ? otherManagers.filter(hasRevenueData).reduce((a,m)=>({target:a.target+m.target, achieved:a.achieved+m.achieved}), {target:0,achieved:0}) : null;
-  const opct = ot ? (ot.achieved/ot.target*100) : null;
+  const otherManagers = prevTab && MONTHS[prevTab.key] ? scopedManagersForMonth(prevTab.key).filter(hasRevenueData) : null;
+  const ot = (otherManagers && otherManagers.length) ? otherManagers.reduce((a,m)=>({target:a.target+m.target, achieved:a.achieved+m.achieved}), {target:0,achieved:0}) : null;
+  // No scoped agents (or no target) in the prior month — e.g. this Manager/TL/Agent filter only
+  // matches someone starting this month — means there's nothing to compare against, not a 0%.
+  const opct = (ot && ot.target > 0) ? (ot.achieved/ot.target*100) : null;
   const delta = opct === null ? null : pct - opct;
   const prevLabel = prevTab ? prevTab.label.split(' ')[0] : '';
 
