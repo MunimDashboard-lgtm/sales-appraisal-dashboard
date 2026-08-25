@@ -146,6 +146,10 @@
   .status-pill{ margin-left:auto; font-size:11px; font-weight:700; padding:4px 10px; border-radius:20px; display:flex; align-items:center; gap:5px; white-space:nowrap; }
   .status-pill .dot{ width:7px; height:7px; border-radius:50%; }
 
+  /* Monthly Top-3 performer ribbon (see computeMonthlyRanks) — sits above the card header so the
+     rank reads before anything else on the card. */
+  .rank-badge{ font-size:11px; font-weight:700; padding:5px 10px; border-radius:8px 8px 0 0; margin:-18px -20px 12px; text-align:center; letter-spacing:0.01em; }
+
   .mgr-stats{ display:grid; grid-template-columns: repeat(4,1fr); gap:8px; margin-bottom:10px; }
   .mgr-stats .cell{ background:var(--page-plane); border:1px solid var(--border); border-radius:8px; padding:8px 10px; }
   [data-theme="dark"] .mgr-stats .cell{ background:#141413; }
@@ -352,10 +356,11 @@
 
   <div class="card compare-card" id="team-filter-bar" hidden>
     <h3>Team view</h3>
-    <div class="card-sub">Narrow every card, chart and KPI below — and the Comparison tab — to one manager's or team lead's team.</div>
+    <div class="card-sub">Narrow every card, chart and KPI below — and the Comparison tab — to one manager's team, one team lead's team, or a single agent. Each level narrows the next: pick a Manager to see just their Team Leads and agents, or a Team Lead to see just their agents.</div>
     <div class="range-picker">
       <label>Manager <select id="team-filter-manager" onchange="onTeamFilterChange('manager', this.value)"></select></label>
       <label>Team Lead <select id="team-filter-tl" onchange="onTeamFilterChange('tl', this.value)"></select></label>
+      <label>Agent <select id="team-filter-agent" onchange="onTeamFilterChange('agent', this.value)"></select></label>
       <button class="reset-link" onclick="clearTeamFilter()">Clear</button>
     </div>
   </div>
@@ -467,6 +472,7 @@
         <input type="email" id="grant-email" placeholder="name@example.com" style="width:260px;">
         <div class="card-sub" style="margin:2px 0 0;">Departments this person can see:</div>
         <div class="dept-checkbox-list" id="grant-depts"></div>
+        <label class="dept-check" style="margin-top:6px;"><input type="checkbox" id="grant-cost-access"> Can view Salary / Cost data (Salary of all, Other Cost, Total Cost, ROI %) — off by default</label>
         <button class="icon-btn" id="grant-btn" onclick="onGrantAccess()">+ Add / update dashboard access</button>
       </div>
       <div class="gate-note" style="margin-top:12px;">While this app is in Google's "Testing" publishing status, a person also needs to be added as an OAuth <b>test user</b> before they can sign in with Google at all — that's a separate, Google-account-level step, not something managed from this list. <a href="https://console.cloud.google.com/auth/audience?project=munim-sales-dashboard" target="_blank" rel="noopener">Open the test-user list →</a></div>
@@ -854,16 +860,18 @@ async function getDashboardAllowlist(){
       const deptsKey = 'dashDepts_' + hash;
       const deptsRaw = props[deptsKey];
       const depts = deptsRaw !== undefined ? deptsRaw.split(',').filter(Boolean) : ['FST'];
-      return { key: k, deptsKey, email: props[k], depts };
+      const costAllowed = props['dashCost_' + hash] === '1';
+      return { key: k, deptsKey, email: props[k], depts, costAllowed };
     })
     .sort((a, b) => (a.email || '').localeCompare(b.email || ''));
 }
-async function addToDashboardAllowlist(email, depts){
+async function addToDashboardAllowlist(email, depts, costAllowed){
   const clean = email.trim().toLowerCase();
   const hash = await hashEmail(clean);
   await writeConfigProps({
     ['dashUser_' + hash]: clean,
-    ['dashDepts_' + hash]: (depts || []).join(',')
+    ['dashDepts_' + hash]: (depts || []).join(','),
+    ['dashCost_' + hash]: costAllowed ? '1' : '0'
   });
 }
 // Drive's PATCH semantics for appProperties merge by key — setting a key's value to null
@@ -871,7 +879,7 @@ async function addToDashboardAllowlist(email, depts){
 // department registration) untouched.
 async function removeFromDashboardAllowlist(userKey){
   const hash = userKey.replace(/^dashUser_/, '');
-  await writeConfigProps({ [userKey]: null, ['dashDepts_' + hash]: null });
+  await writeConfigProps({ [userKey]: null, ['dashDepts_' + hash]: null, ['dashCost_' + hash]: null });
 }
 function describeAccessError(err, action){
   if(err && err.code === 403) return `This account doesn't have permission to ${action} right now (${err.message || 'insufficient Drive permission'}).`;
@@ -983,7 +991,7 @@ async function checkDashboardAccess(){
     if(!isAdminEmail) throw err;
   }
   applyDeptSheetConfigFromProps(props);
-  if(isAdminEmail){ userAllowedDepts = null; return true; }
+  if(isAdminEmail){ userAllowedDepts = null; costFieldsAllowed = true; return true; }
   const hash = await hashEmail(email);
   const userKey = 'dashUser_' + hash;
   if(!(userKey in props)){
@@ -995,6 +1003,7 @@ async function checkDashboardAccess(){
     throw { code: 403, message: 'This account is on the dashboard access list, but hasn\'t been given access to any department yet.' };
   }
   userAllowedDepts = new Set(depts);
+  costFieldsAllowed = props['dashCost_' + hash] === '1';
   return true;
 }
 async function runAccessCheck(){
@@ -1084,10 +1093,20 @@ let userAllowedDepts = null; // null = admin (sees every department); else a Set
 // department has its own Manager/TL/Agent set.
 let teamFilterManager = '';
 let teamFilterTL = '';
+let teamFilterAgent = '';
 // Comparison tab grouping level — see renderCompareView(). 'agent' matches this dashboard's
 // original per-agent behavior; 'tl'/'manager' roll every agent's numbers up to their Team Lead
 // or Manager (summed for Target/Achieved, averaged for the KRA Final Score).
 let compareLevel = 'agent';
+
+// ---------- COST DATA ACCESS (per-user, admin-controlled) ----------
+// Salary/Other Cost/Total Cost/ROI% are pay-sensitive, so whether a signed-in viewer sees them
+// at all — not just whether THEY'VE chosen to show them via "Customize fields" — is an
+// admin-controlled permission, set per person on the "Manage Access" tab (see
+// dashCost_<hash> in the allow-list below). Admins (ADMIN_EMAILS) always see everything.
+// Defaults to false (hidden) for anyone not explicitly granted it, since this gates real pay data.
+let costFieldsAllowed = false;
+const COST_FIELD_KEYS = ['salary', 'otherCost', 'totalCost'];
 
 // The one Sales Data Sheet every department reads from, filtered by its "Department" column —
 // see the SHARED SALES DATA section below. Set/cleared from "Manage Departments"; stored as
@@ -1129,7 +1148,7 @@ async function switchDepartment(deptId){
   if(deptId === currentDept) return;
   saveDeptState(currentDept);
   currentDept = deptId;
-  teamFilterManager = ''; teamFilterTL = ''; // each department has its own team structure
+  teamFilterManager = ''; teamFilterTL = ''; teamFilterAgent = ''; // each department has its own team structure
   const cached = loadDeptState(deptId);
   currentView = 'month';
   renderDeptSubtitle();
@@ -1900,10 +1919,28 @@ let currentView = 'month';
 function scopedManagersForMonth(monthKey){
   const d = MONTHS[monthKey];
   if(!d || !d.managers) return [];
-  if(!teamFilterManager && !teamFilterTL) return d.managers;
+  if(!teamFilterManager && !teamFilterTL && !teamFilterAgent) return d.managers;
   return d.managers.filter(m =>
     (!teamFilterManager || (m.managerName || '') === teamFilterManager) &&
-    (!teamFilterTL || (m.tlName || '') === teamFilterTL));
+    (!teamFilterTL || (m.tlName || '') === teamFilterTL) &&
+    (!teamFilterAgent || m.name === teamFilterAgent));
+}
+// Every agent name that matches the current Manager/Team Lead scope, gathered across every
+// month in this department (not just the one currently open) — so the "Agent" dropdown lists
+// someone even in a month where they happen to have no row, and picking them just yields the
+// same clear empty state scopedManagersForMonth/renderKpis already show for a real empty scope.
+function agentNamesForScope(){
+  const names = new Set();
+  MONTH_TABS.forEach(t => {
+    const mo = MONTHS[t.key];
+    if(!mo || !mo.managers) return;
+    mo.managers.forEach(m => {
+      if(teamFilterManager && (m.managerName || '') !== teamFilterManager) return;
+      if(teamFilterTL && (m.tlName || '') !== teamFilterTL) return;
+      names.add(m.name);
+    });
+  });
+  return [...names].sort();
 }
 // Manager -> Set of Team Leads, built from every month's data for the current department (the
 // org structure doesn't usually change month to month, so this looks across all of MONTH_TABS
@@ -1935,6 +1972,7 @@ function renderTeamFilterBar(){
   if(!shouldShow) return;
   const mgrSel = document.getElementById('team-filter-manager');
   const tlSel = document.getElementById('team-filter-tl');
+  const agentSel = document.getElementById('team-filter-agent');
   const managers = Object.keys(tree).sort();
   mgrSel.innerHTML = '<option value="">All managers</option>' +
     managers.map(m => `<option value="${m}" ${m === teamFilterManager ? 'selected' : ''}>${m}</option>`).join('');
@@ -1943,16 +1981,24 @@ function renderTeamFilterBar(){
     : [...new Set(Object.values(tree).flatMap(s => [...s]))].sort();
   tlSel.innerHTML = '<option value="">All team leads</option>' +
     tlOptions.map(t => `<option value="${t}" ${t === teamFilterTL ? 'selected' : ''}>${t}</option>`).join('');
+  // Third, narrowest level — every agent under whatever Manager/Team Lead is picked above (or
+  // everyone, if neither is set), so a viewer can drill Manager → Team Lead → one specific Agent.
+  if(agentSel){
+    const agentOptions = agentNamesForScope();
+    agentSel.innerHTML = '<option value="">All agents</option>' +
+      agentOptions.map(a => `<option value="${a}" ${a === teamFilterAgent ? 'selected' : ''}>${a}</option>`).join('');
+  }
 }
 function onTeamFilterChange(level, value){
-  if(level === 'manager'){ teamFilterManager = value; teamFilterTL = ''; } // picking a manager resets the narrower TL pick
-  else { teamFilterTL = value; }
+  if(level === 'manager'){ teamFilterManager = value; teamFilterTL = ''; teamFilterAgent = ''; } // picking a manager resets the narrower TL/Agent picks
+  else if(level === 'tl'){ teamFilterTL = value; teamFilterAgent = ''; } // picking a TL resets the narrower Agent pick
+  else { teamFilterAgent = value; }
   renderTeamFilterBar();
   if(currentView === 'month') renderMonthView(currentMonth);
   else if(currentView === 'compare') renderCompareView();
 }
 function clearTeamFilter(){
-  teamFilterManager = ''; teamFilterTL = '';
+  teamFilterManager = ''; teamFilterTL = ''; teamFilterAgent = '';
   renderTeamFilterBar();
   if(currentView === 'month') renderMonthView(currentMonth);
   else if(currentView === 'compare') renderCompareView();
@@ -1964,6 +2010,17 @@ function renderKpis(monthKey){
   // filled in) shouldn't dilute the team's revenue picture. Scoped to the current team-view
   // filter, so "Team Target"/"Team Achieved" etc. read as that team's totals, not everyone's.
   const salesManagers = scopedManagersForMonth(monthKey).filter(hasRevenueData);
+  if(!salesManagers.length){
+    // Distinguish "nobody has revenue data yet" from "the Manager/Team Lead/Agent filter above
+    // matched nobody this month" (e.g. a manager who only had a team in an earlier month) —
+    // showing ₹0/NaN% here used to look like a broken filter rather than an honest empty scope.
+    const teamFilterActive = !!(teamFilterManager || teamFilterTL || teamFilterAgent);
+    const msg = teamFilterActive
+      ? 'No agents match the selected Manager/Team Lead/Agent filter for this month.'
+      : 'No revenue data for this month yet.';
+    document.getElementById('kpi-row').innerHTML = `<div style="color:var(--text-muted);font-size:12.5px;padding:8px 0;">${msg}</div>`;
+    return;
+  }
   const t = salesManagers.reduce((a,m)=>({
     target:a.target+m.target, achieved:a.achieved+m.achieved, bdes:a.bdes+m.bdes,
     totalCost:a.totalCost+m.totalCost, noOfSale:a.noOfSale+m.noOfSale
@@ -1984,9 +2041,9 @@ function renderKpis(monthKey){
       delta: delta===null? null : (delta>=0? '▲ '+delta.toFixed(1)+' pts vs '+prevLabel : '▼ '+Math.abs(delta).toFixed(1)+' pts vs '+prevLabel),
       deltaClass: delta===null? '' : (delta>=0?'good':'bad')},
     {label:'Total BDEs', value: t.bdes},
-    {label:'Total Sales', value: t.noOfSale},
-    {label:'Total Cost', value: fmtINR(t.totalCost)}
+    {label:'Total Sales', value: t.noOfSale}
   ];
+  if(costFieldsAllowed) kpis.push({label:'Total Cost', value: fmtINR(t.totalCost)});
   document.getElementById('kpi-row').innerHTML = kpis.map(k => `
     <div class="kpi">
       <div class="label">${k.label}</div>
@@ -2076,10 +2133,16 @@ const CARD_FIELD_DEFS = [
 // Session-only, like manualScores/openEditPanels above — resets on reload, never written to
 // any Sheet. Empty by default = "keep the same what right now" for every new viewer.
 let visibleCardFields = new Set();
+// The fields this signed-in viewer is actually allowed to pick from — same list as
+// CARD_FIELD_DEFS, minus the pay-sensitive cost fields for anyone costFieldsAllowed hasn't been
+// turned on for (see the COST DATA ACCESS section above). Admins always get the full list.
+function allowedCardFieldDefs(){
+  return costFieldsAllowed ? CARD_FIELD_DEFS : CARD_FIELD_DEFS.filter(f => !COST_FIELD_KEYS.includes(f.key));
+}
 function renderCardFieldsPanel(){
   const el = document.getElementById('card-fields-panel');
   if(!el) return;
-  el.innerHTML = CARD_FIELD_DEFS.map(f => `
+  el.innerHTML = allowedCardFieldDefs().map(f => `
     <label class="cf-check">
       <input type="checkbox" ${visibleCardFields.has(f.key)?'checked':''} onchange="toggleCardField('${f.key}', this.checked)">
       ${f.label}
@@ -2100,7 +2163,7 @@ function toggleCardFieldsPanel(){
 // The extra fields block on a manager card — only fields the viewer turned on AND that have
 // an actual value for this manager (no blank/zero-looking placeholders for untracked data).
 function renderExtraCardFields(m){
-  const fields = CARD_FIELD_DEFS.filter(f => visibleCardFields.has(f.key)).map(f => {
+  const fields = allowedCardFieldDefs().filter(f => visibleCardFields.has(f.key)).map(f => {
     const v = f.get(m);
     return (v === null || v === undefined) ? null : [f.label, f.fmt(v)];
   }).filter(Boolean);
@@ -2125,10 +2188,37 @@ function renderSubMetrics(sm){
     ${sm.notes ? `<div style="font-size:11px;color:var(--text-muted);margin:0 0 12px;"><b style="color:var(--text-secondary)">Note:</b> ${sm.notes}</div>` : ''}`;
 }
 
+// Top-3 monthly performers by % Achievement — always ranked against the WHOLE department's
+// data for that month (every manager/agent with revenue data, regardless of any Manager/Team
+// Lead/Agent filter currently applied above), so the ranking badge is a stable, month-wide fact
+// rather than something that shifts depending on what's currently being viewed.
+function computeMonthlyRanks(monthKey){
+  const d = MONTHS[monthKey];
+  const ranks = new Map();
+  if(!d || !d.managers) return ranks;
+  const ranked = d.managers.filter(hasRevenueData).slice().sort((a,b) => b.pctAchv - a.pctAchv);
+  ranked.slice(0,3).forEach((m,i) => ranks.set(m.name, i+1));
+  return ranks;
+}
+const RANK_BADGES = { 1: {icon:'🏆', label:'Top Performer', bg:'#caa022', fg:'#3a2d05'}, 2: {icon:'🥈', label:'2nd Rank', bg:'#b9c2cc', fg:'#2b3138'}, 3: {icon:'🥉', label:'3rd Rank', bg:'#c98a5e', fg:'#3a220f'} };
+
 function renderManagerCards(monthKey){
   const d = MONTHS[monthKey]; // kept unfiltered — computeAllScores needs the full-month baseline
-  const html = scopedManagersForMonth(monthKey).map((m,i) => {
+  const ranks = computeMonthlyRanks(monthKey);
+  // Within whatever's currently in scope, the best % Achievement leads the grid — "who's on top
+  // this month" reads straight off the page instead of needing to scan every card. Agents with
+  // no revenue data yet (KRA-only) sort to the end, keeping their original relative order.
+  const ordered = scopedManagersForMonth(monthKey)
+    .map((m, idx) => ({ m, idx, rank: hasRevenueData(m) ? m.pctAchv : -Infinity }))
+    .sort((a,b) => b.rank - a.rank || a.idx - b.idx)
+    .map(x => x.m);
+  const html = ordered.map((m,i) => {
     const {scores, weighted, pending, hasRevenue} = computeAllScores(m, monthKey, d);
+    const rank = ranks.get(m.name);
+    const badge = rank ? RANK_BADGES[rank] : null;
+    const rankBadgeHtml = badge
+      ? `<div class="rank-badge" style="background:${badge.bg}; color:${badge.fg}">${badge.icon} ${badge.label} — ${(d && d.label) || ''}</div>`
+      : '';
     const initials = m.name.slice(0,2).toUpperCase();
     const color = COLORS[i % COLORS.length];
     const finalColor = weighted >= 80 ? 'var(--good)' : weighted >= 60 ? 'var(--warning)' : 'var(--critical)';
@@ -2168,12 +2258,13 @@ function renderManagerCards(monthKey){
           <div class="cell"><div class="k">Target</div><div class="v">${fmtINR(m.target)}</div></div>
           <div class="cell"><div class="k">Achieved</div><div class="v">${fmtINR(m.achieved)}</div></div>
           <div class="cell"><div class="k">BDEs</div><div class="v">${m.bdes}</div></div>
-          <div class="cell"><div class="k">ROI %</div><div class="v">${m.roiPct.toFixed(1)}%</div></div>
+          ${costFieldsAllowed ? `<div class="cell"><div class="k">ROI %</div><div class="v">${m.roiPct.toFixed(1)}%</div></div>` : ''}
         </div>`
       : `<div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">No Target/Achieved on file yet — add them via "✏️ Edit raw data" once this manager has revenue-style output, or leave as KRA-only (Leadership/Reporting/Attrition still score normally).</div>`;
 
     return `
     <div class="mgr-card">
+      ${rankBadgeHtml}
       <div class="mgr-head">
         <div class="avatar" style="background:${color}">${initials}</div>
         <div>
@@ -2201,12 +2292,12 @@ function renderManagerCards(monthKey){
           <label>No. of BDEs
             <input type="number" value="${m.bdes}" onchange="onEditField('${monthKey}','${m.name}','bdes', this.value)">
           </label>
-          <label>Salary Cost
+          ${costFieldsAllowed ? `<label>Salary Cost
             <input type="number" value="${m.salary}" onchange="onEditField('${monthKey}','${m.name}','salary', this.value)">
           </label>
           <label>Other Cost (marketing/CRM/etc.)
             <input type="number" value="${m.otherCost}" onchange="onEditField('${monthKey}','${m.name}','otherCost', this.value)">
-          </label>
+          </label>` : ''}
           <label>Attrition % <span style="text-transform:none">(blank = not tracked)</span>
             <input type="number" step="0.1" value="${m.attritionPct===null?'':m.attritionPct}" placeholder="—" onchange="onEditField('${monthKey}','${m.name}','attritionPct', this.value)">
           </label>
@@ -2683,9 +2774,11 @@ function renderGrantDeptCheckboxes(selected){
 function selectedGrantDepts(){
   return [...document.querySelectorAll('#grant-depts input:checked')].map(cb => cb.value);
 }
-function onEditAccess(email, deptsCsv){
+function onEditAccess(email, deptsCsv, costAllowed){
   document.getElementById('grant-email').value = email;
   renderGrantDeptCheckboxes(deptsCsv ? deptsCsv.split(',').filter(Boolean) : []);
+  const costCb = document.getElementById('grant-cost-access');
+  if(costCb) costCb.checked = !!costAllowed;
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -2698,21 +2791,25 @@ function renderAccessRows(entries){
   const rows = entries.map(e => {
     const emailAttr = (e.email || '').replace(/'/g, "\\'");
     const deptTags = e.depts.length ? e.depts.map(id => `<span class="dept-tag">${deptName(id)}</span>`).join('') : '<span style="color:var(--text-muted);font-size:11px;">none yet</span>';
+    const costCell = e.costAllowed ? '✅ allowed' : '<span style="color:var(--text-muted);">— hidden</span>';
     return `<tr>
       <td class="name-cell">${e.email || '(unknown)'}</td>
       <td>${deptTags}</td>
+      <td>${costCell}</td>
       <td>
-        <button class="reset-link" onclick="onEditAccess('${emailAttr}','${e.depts.join(',')}')">Edit</button>
+        <button class="reset-link" onclick="onEditAccess('${emailAttr}','${e.depts.join(',')}', ${e.costAllowed ? 'true' : 'false'})">Edit</button>
         <button class="reset-link" onclick="onRevokeAccess('${e.key}','${emailAttr}')">Remove</button>
       </td>
     </tr>`;
   }).join('');
-  el.innerHTML = `<table class="data-table"><thead><tr><th>Person</th><th>Can see</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  el.innerHTML = `<table class="data-table"><thead><tr><th>Person</th><th>Can see</th><th>Salary/Cost data</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 async function renderAccessView(){
   hideAccessError();
   renderGrantDeptCheckboxes([]);
+  const costCb = document.getElementById('grant-cost-access');
+  if(costCb) costCb.checked = false;
   document.getElementById('access-list').innerHTML = '<div style="color:var(--text-muted);font-size:12.5px;">Loading…</div>';
   try{
     const entries = await getDashboardAllowlist();
@@ -2731,12 +2828,14 @@ async function onGrantAccess(){
   if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ showAccessError('Enter a valid email address first.'); return; }
   const depts = selectedGrantDepts();
   if(!depts.length){ showAccessError('Check at least one department for this person to see.'); return; }
+  const costAllowed = !!document.getElementById('grant-cost-access').checked;
   const btn = document.getElementById('grant-btn');
   btn.disabled = true;
   try{
-    await addToDashboardAllowlist(email, depts);
+    await addToDashboardAllowlist(email, depts, costAllowed);
     input.value = '';
     renderGrantDeptCheckboxes([]);
+    document.getElementById('grant-cost-access').checked = false;
     await renderAccessView();
   } catch(err){
     showAccessError(describeAccessError(err, 'add this person to'));
@@ -3097,7 +3196,7 @@ function saveDefaultView(){
   if(!currentUser){ alert('Sign in first.'); return; }
   const prefs = {
     dept: currentDept,
-    teamFilterManager, teamFilterTL, compareLevel,
+    teamFilterManager, teamFilterTL, teamFilterAgent, compareLevel,
     qualityFilter: currentDept === 'QUALITY' ? qualityFilter : undefined,
     visibleCardFields: [...visibleCardFields]
   };
@@ -3137,6 +3236,7 @@ function boot(){
     if(prefs.dept && allowedDepartments().some(d => d.id === prefs.dept)) currentDept = prefs.dept;
     teamFilterManager = prefs.teamFilterManager || '';
     teamFilterTL = prefs.teamFilterTL || '';
+    teamFilterAgent = prefs.teamFilterAgent || '';
     compareLevel = prefs.compareLevel || 'agent';
     if(prefs.qualityFilter) qualityFilter = Object.assign({ dept:'', manager:'', tl:'', agent:'' }, prefs.qualityFilter);
     if(Array.isArray(prefs.visibleCardFields)) visibleCardFields = new Set(prefs.visibleCardFields);
