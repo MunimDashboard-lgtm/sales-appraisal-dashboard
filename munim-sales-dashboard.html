@@ -160,10 +160,16 @@
   #card-fields-toggle.active{ color:var(--series-1); border-color:var(--series-1); }
   .card-fields-panel{
     background:var(--surface-1); border:1px solid var(--border); border-radius:12px;
-    padding:14px 16px; margin-bottom:14px; display:grid; grid-template-columns: repeat(3, 1fr); gap:8px 16px;
+    padding:14px 16px; margin-bottom:14px; display:flex; flex-direction:column; gap:12px;
   }
   .card-fields-panel[hidden]{ display:none; }
-  @media (max-width: 720px){ .card-fields-panel{ grid-template-columns: repeat(2, 1fr); } }
+  .card-fields-grid{ display:grid; grid-template-columns: repeat(3, 1fr); gap:8px 16px; }
+  @media (max-width: 720px){ .card-fields-grid{ grid-template-columns: repeat(2, 1fr); } }
+  .card-fields-default-row{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    padding-top:12px; border-top:1px solid var(--border);
+  }
+  .card-fields-default-row .cf-default-note{ font-size:11.5px; color:var(--text-muted); flex:1 1 220px; line-height:1.5; }
   .cf-check{ display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--text-secondary); cursor:pointer; }
   .cf-check input{ cursor:pointer; }
 
@@ -310,6 +316,7 @@
     <h2>Sign in to view this dashboard</h2>
     <p>This dashboard shows live sales performance data pulled directly from the underlying Google Sheets. Sign in with your Google account (any Gmail, Workspace or other Google account) — you'll get in if you're on the dashboard's own access list, separate from who has access to the underlying Sheets.</p>
     <div class="gate-error" id="gate-error"></div>
+    <div class="gate-checking" id="gate-checking" style="display:none; font-size:13px; color:var(--text-secondary); margin-bottom:10px;">⏳ Checking your saved sign-in…</div>
     <div class="gsi-slot">
       <button class="icon-btn" id="gsi-signin-btn" onclick="signIn()" style="padding:9px 18px; font-size:13px;" disabled>🔐 Sign in with Google</button>
       <button class="icon-btn" id="gsi-retry-btn" onclick="retryAccessCheck()" style="padding:9px 18px; font-size:13px; display:none; margin-left:8px;">↻ Check access again</button>
@@ -341,8 +348,8 @@
       <span class="user-chip" id="user-chip" hidden></span>
       <button class="icon-btn" onclick="manualRefresh()">🔄 Refresh</button>
       <button class="icon-btn" onclick="resetAllData()">↺ Reset</button>
-      <button class="icon-btn" onclick="saveDefaultView()" title="Remembers your current department, team filter and comparison settings on this browser, and loads them automatically next time you sign in.">📌 Save as default</button>
-      <button class="icon-btn" onclick="clearDefaultView()">✖ Clear default</button>
+      <button class="icon-btn" onclick="saveDefaultView()" title="Saves the current department's own team filter, comparison and field settings as its default (each department keeps its own — this doesn't touch any other department's saved default), and starts you here next sign-in.">📌 Save as default</button>
+      <button class="icon-btn" onclick="clearDefaultView()" title="Clears only this department's saved default.">✖ Clear default</button>
       <button class="icon-btn" id="theme-toggle" onclick="toggleTheme()">🌙 Dark mode</button>
     </div>
   </header>
@@ -752,6 +759,39 @@ function initGoogleAuth(){
     callback: handleTokenResponse
   });
   document.getElementById('gsi-signin-btn').disabled = false;
+  attemptAutoSignIn();
+}
+
+// Runs once on every page load (this covers a literal browser refresh/reload, not just the
+// in-app "Refresh" button, which never touches auth at all). accessToken/currentUser are plain
+// in-memory JS variables with no localStorage/sessionStorage backing, so without this, every
+// reload would always land on the visible "Sign in to view this dashboard" gate — which is what
+// was being reported as "auto logout on refresh". Instead, try a SILENT token request first
+// (prompt:'') — this succeeds with no visible popup/consent screen as long as the browser still
+// has this person's Google session active AND they haven't explicitly signed out (signOut()
+// below revokes the grant, which is what makes the silent request start failing again — so an
+// explicit Sign Out is still the only thing that really logs someone out). If the silent request
+// fails for any reason (no active Google session, revoked consent, brand-new visitor), we simply
+// fall back to the ordinary visible sign-in button — nothing breaks for a first-time viewer.
+function attemptAutoSignIn(){
+  const btn = document.getElementById('gsi-signin-btn');
+  const checking = document.getElementById('gate-checking');
+  if(btn) btn.style.display = 'none';
+  if(checking) checking.style.display = '';
+  const restore = tokenClient.callback;
+  tokenClient.callback = async (resp) => {
+    tokenClient.callback = restore;
+    if(checking) checking.style.display = 'none';
+    if(resp.error){
+      if(btn) btn.style.display = ''; // no active/consented Google session — show the normal gate
+      return;
+    }
+    accessToken = resp.access_token;
+    try{ currentUser = await fetchUserInfo(); }
+    catch(err){ console.warn('userinfo fetch failed', err); currentUser = null; }
+    await runAccessCheck();
+  };
+  tokenClient.requestAccessToken({ prompt: '' });
 }
 
 function signIn(){
@@ -766,6 +806,10 @@ function retryAccessCheck(){
   hideGateError();
   runAccessCheck();
 }
+// Explicit sign-out is the ONLY thing that should end the session (see attemptAutoSignIn above)
+// — revoking the token here invalidates this account's consent grant for the dashboard, so the
+// next page load's silent auto-sign-in attempt correctly fails and shows the real sign-in gate,
+// instead of quietly resuming.
 function signOut(){
   if(accessToken) google.accounts.oauth2.revoke(accessToken, () => {});
   accessToken = null;
@@ -1148,7 +1192,7 @@ async function switchDepartment(deptId){
   if(deptId === currentDept) return;
   saveDeptState(currentDept);
   currentDept = deptId;
-  teamFilterManager = ''; teamFilterTL = ''; teamFilterAgent = ''; // each department has its own team structure
+  applyDeptDefaultView(deptId); // each department has its own team structure AND its own saved default view
   const cached = loadDeptState(deptId);
   currentView = 'month';
   renderDeptSubtitle();
@@ -1156,6 +1200,8 @@ async function switchDepartment(deptId){
   renderMonthTabs();
   renderDataStatus();
   renderMonthView(currentMonth);
+  const cfPanel = document.getElementById('card-fields-panel');
+  if(cfPanel && !cfPanel.hasAttribute('hidden')) renderCardFieldsPanel(); // refresh checkboxes to this department's own saved fields
   if(!cached) await refreshAllFromSheet(false);
   sendHeartbeat();
 }
@@ -2144,11 +2190,21 @@ function allowedCardFieldDefs(){
 function renderCardFieldsPanel(){
   const el = document.getElementById('card-fields-panel');
   if(!el) return;
-  el.innerHTML = allowedCardFieldDefs().map(f => `
+  const grid = allowedCardFieldDefs().map(f => `
     <label class="cf-check">
       <input type="checkbox" ${visibleCardFields.has(f.key)?'checked':''} onchange="toggleCardField('${f.key}', this.checked)">
       ${f.label}
     </label>`).join('');
+  // Save/Clear default view live here too (alongside the top-bar buttons) since this panel is
+  // where "which fields show" gets decided, and the saved default is per-department — saving
+  // one here only affects ${deptName(currentDept)}, never any other department.
+  const footer = currentUser ? `
+    <div class="card-fields-default-row">
+      <button class="icon-btn" onclick="saveDefaultView()" title="Remembers the team filter, comparison level and these field choices for ${deptName(currentDept)} only, and loads them automatically next time.">📌 Save as default for ${deptName(currentDept)}</button>
+      <button class="icon-btn" onclick="clearDefaultView()">✖ Clear default for ${deptName(currentDept)}</button>
+      <span class="cf-default-note">Each department remembers its own default separately — saving or clearing here only affects ${deptName(currentDept)}.</span>
+    </div>` : '';
+  el.innerHTML = `<div class="card-fields-grid">${grid}</div>${footer}`;
 }
 function toggleCardField(key, checked){
   if(checked) visibleCardFields.add(key); else visibleCardFields.delete(key);
@@ -3194,32 +3250,76 @@ function renderMonthTabs(){
 // localStorage keyed by the signed-in email, not on any Sheet — it's a personal convenience,
 // not shared data, so it doesn't need a round trip to Drive/Sheets to save or load.
 function defaultViewKey(){ return 'munimDashDefaultView_' + (currentUser ? currentUser.email.toLowerCase() : 'anon'); }
+// Stored shape: { startDept: 'FST', depts: { FST: {...}, QUALITY: {...} } } — each department
+// remembers its OWN team filter / comparison / card-field settings independently, so saving a
+// default for one department never overwrites or forces the same filter onto any other
+// department. startDept is just which department to land on right after sign-in; it's updated
+// to whichever department you most recently saved a default for.
+function loadDefaultViewStore(){
+  if(!currentUser) return { startDept: null, depts: {} };
+  try{
+    const raw = localStorage.getItem(defaultViewKey());
+    const parsed = raw ? JSON.parse(raw) : null;
+    if(!parsed) return { startDept: null, depts: {} };
+    if(parsed.depts) return { startDept: parsed.startDept || null, depts: parsed.depts };
+    // Migrate the old single-object shape (one global default across every department) into the
+    // new per-department shape, keyed under whichever department it was saved for.
+    if(parsed.dept) return { startDept: parsed.dept, depts: { [parsed.dept]: parsed } };
+    return { startDept: null, depts: {} };
+  } catch(err){ return { startDept: null, depts: {} }; }
+}
+function saveDefaultViewStore(store){
+  try{ localStorage.setItem(defaultViewKey(), JSON.stringify(store)); return true; }
+  catch(err){ return false; }
+}
 function saveDefaultView(){
   if(!currentUser){ alert('Sign in first.'); return; }
-  const prefs = {
-    dept: currentDept,
+  const store = loadDefaultViewStore();
+  store.depts[currentDept] = {
     teamFilterManager, teamFilterTL, teamFilterAgent, compareLevel,
     qualityFilter: currentDept === 'QUALITY' ? qualityFilter : undefined,
     visibleCardFields: [...visibleCardFields]
   };
-  try{
-    localStorage.setItem(defaultViewKey(), JSON.stringify(prefs));
-    alert('Saved — this view (department, team filter, comparison settings) will load automatically next time you sign in on this browser.');
-  } catch(err){
-    alert('Could not save your default view in this browser: ' + (err.message || err));
+  store.startDept = currentDept;
+  if(saveDefaultViewStore(store)){
+    alert(`Saved as the default view for ${deptName(currentDept)} — this department's team filter, comparison and field settings will load automatically next time, and you'll land on ${deptName(currentDept)} right after signing in. Other departments keep whatever defaults they already had; this doesn't change them.`);
+  } else {
+    alert('Could not save your default view in this browser: localStorage write failed.');
   }
 }
-function loadDefaultView(){
-  if(!currentUser) return null;
-  try{
-    const raw = localStorage.getItem(defaultViewKey());
-    return raw ? JSON.parse(raw) : null;
-  } catch(err){ return null; }
+// Only the CURRENT department's own saved defaults are read here — never another
+// department's — so switching departments never carries one department's filter into another.
+function loadDefaultViewForDept(deptId){
+  const store = loadDefaultViewStore();
+  return store.depts[deptId] || null;
 }
 function clearDefaultView(){
   if(!currentUser){ alert('Sign in first.'); return; }
-  try{ localStorage.removeItem(defaultViewKey()); } catch(err){}
-  alert('Cleared your saved default view. This browser will go back to the ordinary starting view next sign-in.');
+  const store = loadDefaultViewStore();
+  const had = !!store.depts[currentDept];
+  delete store.depts[currentDept];
+  if(store.startDept === currentDept) store.startDept = null;
+  saveDefaultViewStore(store);
+  alert(had
+    ? `Cleared the saved default for ${deptName(currentDept)}. It'll go back to the ordinary starting view next time. Other departments' saved defaults are unaffected.`
+    : `${deptName(currentDept)} didn't have a saved default.`);
+}
+// Applies deptId's own saved default (team filter / comparison level / quality filter / visible
+// card fields) if one exists, otherwise resets to the plain unfiltered starting state — used both
+// at boot and on every department switch so each department always reflects only ITS OWN saved
+// default, never whatever was showing in the previously-selected department.
+function applyDeptDefaultView(deptId){
+  teamFilterManager = ''; teamFilterTL = ''; teamFilterAgent = ''; compareLevel = 'agent';
+  visibleCardFields = new Set();
+  const prefs = currentUser ? loadDefaultViewForDept(deptId) : null;
+  if(prefs){
+    teamFilterManager = prefs.teamFilterManager || '';
+    teamFilterTL = prefs.teamFilterTL || '';
+    teamFilterAgent = prefs.teamFilterAgent || '';
+    compareLevel = prefs.compareLevel || 'agent';
+    if(prefs.qualityFilter) qualityFilter = Object.assign({ dept:'', manager:'', tl:'', agent:'' }, prefs.qualityFilter);
+    if(Array.isArray(prefs.visibleCardFields)) visibleCardFields = new Set(prefs.visibleCardFields);
+  }
 }
 
 function boot(){
@@ -3230,19 +3330,13 @@ function boot(){
   // nothing here changes unless the signed-in account's allowed departments say otherwise.
   saveDeptState('FST');
   currentDept = pickInitialDept();
-  // A saved "default view" (see saveDefaultView above) overrides the ordinary starting point —
-  // but only the department override actually needs validating against what this account is
-  // allowed to see; the rest are just display filters that no-op harmlessly if stale.
-  const prefs = loadDefaultView();
-  if(prefs){
-    if(prefs.dept && allowedDepartments().some(d => d.id === prefs.dept)) currentDept = prefs.dept;
-    teamFilterManager = prefs.teamFilterManager || '';
-    teamFilterTL = prefs.teamFilterTL || '';
-    teamFilterAgent = prefs.teamFilterAgent || '';
-    compareLevel = prefs.compareLevel || 'agent';
-    if(prefs.qualityFilter) qualityFilter = Object.assign({ dept:'', manager:'', tl:'', agent:'' }, prefs.qualityFilter);
-    if(Array.isArray(prefs.visibleCardFields)) visibleCardFields = new Set(prefs.visibleCardFields);
-  }
+  // A saved "start department" (see saveDefaultView above) overrides the ordinary starting
+  // point — validated against what this account is actually allowed to see. Each department's
+  // OWN saved default (team filter, comparison level, card fields) is then applied via
+  // applyDeptDefaultView, never mixing in another department's settings.
+  const startDept = loadDefaultViewStore().startDept;
+  if(startDept && allowedDepartments().some(d => d.id === startDept)) currentDept = startDept;
+  applyDeptDefaultView(currentDept);
   if(currentDept !== 'FST') loadDeptState(currentDept);
   renderDeptSelector();
   renderDeptSubtitle();
