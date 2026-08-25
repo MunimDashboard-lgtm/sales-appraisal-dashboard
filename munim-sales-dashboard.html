@@ -526,6 +526,22 @@
     </div>
 
     <div class="card compare-card">
+      <h3>Cost Data Sheet (confidential — Salary / Other Cost)</h3>
+      <div class="card-sub">A separate, far-more-restricted Sheet holding just Month, Department, Agent Name, Salary of all and Other Cost (Email/Incentive) — moved out of the main Sales Data Sheet so people without "Salary / Cost data" access can't see pay figures just by opening the raw Sheet directly, even though that main Sheet has to stay broadly readable for everyone's ordinary numbers. Share THIS Sheet only with people who should see cost data; the dashboard fetches it (and matches rows back by Month + Department + Agent Name) only for signed-in viewers who both have "Salary / Cost data" checked here AND have real Google-level access to this Sheet.</div>
+      <div class="access-error" id="cost-sheet-error"></div>
+      <div class="dept-form">
+        <label>Cost Data Sheet (link or ID)
+          <input type="text" id="cost-sheet-input" placeholder="https://docs.google.com/spreadsheets/d/...">
+        </label>
+        <div style="display:flex; gap:8px;">
+          <button class="icon-btn" id="cost-sheet-save" onclick="onSaveCostSheet()">💾 Save Cost sheet</button>
+          <button class="reset-link" onclick="onClearCostSheet()">Disconnect</button>
+        </div>
+      </div>
+      <div class="card-sub" id="cost-sheet-status" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="card compare-card">
       <h3>Manager KRA Master Sheet (optional, per department)</h3>
       <div class="card-sub">For Leadership/Reporting scores only. Each department can point at its own Master Sheet, or leave this blank if it doesn't have one yet — those two KRAs just show N/A until it's connected.</div>
       <div class="access-error" id="depts-error"></div>
@@ -999,6 +1015,9 @@ function applyDeptSheetConfigFromProps(props){
   const qualityId = props['dashQualitySheet'] || '';
   if(qualityId !== QUALITY_SHEET_ID) QUALITY_SHEET_TAB = null;
   QUALITY_SHEET_ID = qualityId;
+  const costId = props['dashCostSheet'] || '';
+  if(costId !== COST_SHEET_ID) COST_SHEET_TAB = null;
+  COST_SHEET_ID = costId;
 }
 async function saveDeptSheetConfig(deptId, masterSheetIdRaw){
   const cfg = { masterSheetId: extractSheetId(masterSheetIdRaw), masterGid: '' };
@@ -1015,6 +1034,17 @@ async function clearSharedSalesSheet(){
   await writeConfigProps({ dashSharedSalesSheet: null });
   SHARED_SHEET_ID = '';
   SHARED_SHEET_TAB = null;
+}
+async function saveCostSheet(sheetIdRaw){
+  const id = extractSheetId(sheetIdRaw);
+  await writeConfigProps({ dashCostSheet: id });
+  COST_SHEET_ID = id;
+  COST_SHEET_TAB = null;
+}
+async function clearCostSheet(){
+  await writeConfigProps({ dashCostSheet: null });
+  COST_SHEET_ID = '';
+  COST_SHEET_TAB = null;
 }
 
 async function fetchUserInfo(){
@@ -1149,8 +1179,9 @@ const DEPARTMENTS = [
 function deptName(id){ const d = DEPARTMENTS.find(x => x.id === id); return d ? d.name : id; }
 
 // Fixed Drive file used purely as a private metadata anchor — the access allow-list
-// (dashUser_*/dashDepts_*, see below), the per-department Master Sheet registry (dashDept_*)
-// and the shared Sales Data Sheet's id (dashSharedSalesSheet) all live in its appProperties.
+// (dashUser_*/dashDepts_*/dashCost_*, see below), the per-department Master Sheet registry
+// (dashDept_*), and the shared Sales/Quality/Cost Data Sheet ids (dashSharedSalesSheet,
+// dashQualitySheet, dashCostSheet) all live in its appProperties.
 // It happens to be FST's own original Manager KRA Master Sheet (kept for backward compatibility
 // with access-list entries already stored there), but nothing about it is FST-specific anymore
 // — it's just the anchor file.
@@ -1186,13 +1217,22 @@ let compareLevel = 'agent';
 // dashCost_<hash> in the allow-list below). Admins (ADMIN_EMAILS) always see everything.
 // Defaults to false (hidden) for anyone not explicitly granted it, since this gates real pay data.
 let costFieldsAllowed = false;
-const COST_FIELD_KEYS = ['salary', 'otherCost', 'totalCost'];
+// leftForRoi is purely derived from totalCost (see recomputeManager) so it's just as
+// pay-sensitive as totalCost itself — included here so "Customize fields" can never be used to
+// back into a hidden cost figure through a field that wasn't explicitly gated.
+const COST_FIELD_KEYS = ['salary', 'otherCost', 'totalCost', 'leftForRoi'];
 
 // The one Sales Data Sheet every department reads from, filtered by its "Department" column —
 // see the SHARED SALES DATA section below. Set/cleared from "Manage Departments"; stored as
 // appProperties key dashSharedSalesSheet on CONFIG_ANCHOR_ID.
 let SHARED_SHEET_ID = '';
 let SHARED_SHEET_TAB = null; // resolved tab title, cached once per SHARED_SHEET_ID
+// A separate, far-more-restricted Google Sheet holding just Salary of all / Other Cost
+// (Email/Incentive) per Month|Department|Agent Name — see the CONFIDENTIAL COST DATA SHEET
+// section below. Set/cleared from "Manage Departments"; stored as appProperties key
+// dashCostSheet on CONFIG_ANCHOR_ID.
+let COST_SHEET_ID = '';
+let COST_SHEET_TAB = null; // resolved tab title, cached once per COST_SHEET_ID
 
 function activeSheetId(){ return SHARED_SHEET_ID || null; }
 function activeMasterSheetId(){ const c = DEPT_SHEETS[currentDept]; return c && c.masterSheetId ? c.masterSheetId : null; }
@@ -1539,7 +1579,101 @@ async function fetchSharedSalesData(){
   // silently truncate all of those out of the fetched rows before header-matching ever sees them.
   const range = encodeURIComponent(`'${SHARED_SHEET_TAB.replace(/'/g, "''")}'!A1:BZ5000`);
   const data = await apiFetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHARED_SHEET_ID}/values/${range}?valueRenderOption=FORMATTED_VALUE`);
-  return parseSharedSalesRows(data.values || []);
+  const byMonth = parseSharedSalesRows(data.values || []);
+  // Overlay Salary/Other Cost from the separate, restricted Cost Data Sheet (see below) when one
+  // is connected — it takes priority over any Salary/Other Cost still left in the main sheet
+  // (e.g. mid-migration, before those columns are cut out of the main sheet), since the whole
+  // point of the Cost Data Sheet is to become the one real source for these two figures.
+  if(COST_SHEET_ID && costFieldsAllowed){
+    try{
+      const costLookup = await fetchCostData();
+      Object.keys(byMonth).forEach(monthKey => {
+        Object.keys(byMonth[monthKey].byDept).forEach(deptId => {
+          byMonth[monthKey].byDept[deptId].forEach(m => {
+            const hit = costLookup[monthKey + '|' + deptId + '|' + m.name];
+            if(!hit) return;
+            if(hit.salary !== undefined) m.salary = hit.salary;
+            if(hit.otherCost !== undefined) m.otherCost = hit.otherCost;
+            recomputeManager(m); // keep totalCost/roiPct/leftForRoi consistent with the overlaid figures
+          });
+        });
+      });
+    } catch(err){
+      // Expected (a plain 403) for any signed-in viewer whose Google account isn't on the Cost
+      // Data Sheet's own restricted share list — that's the point of moving it out, so don't
+      // block the whole refresh over a sheet this particular viewer was never meant to see.
+      console.warn('Cost Data Sheet fetch failed', err);
+    }
+  }
+  return byMonth;
+}
+
+// ---------- CONFIDENTIAL COST DATA SHEET (separate, far-more-restricted sheet) ----------
+// Salary of all / Other Cost (Email/Incentive) used to live as two more columns in the Sales
+// Data Sheet above — but that sheet needs "Anyone with the link" (or explicit access for every
+// dashboard user) just so everyone's own sign-in can read their OWN department's ordinary
+// figures, which means anyone who opened the raw Sheet directly could see EVERY department's pay
+// data too, regardless of what this dashboard's own "Manage Access" cost checkbox said. Moving
+// just those two raw inputs into their own Sheet — shared with far fewer people — closes that
+// gap: Total Cost and ROI% are never read from any sheet at all (see recomputeManager above),
+// they're always derived client-side from Salary + Other Cost, so protecting these two raw
+// inputs is enough to protect all four fields the dashboard shows as "confidential". Same shape
+// as the Sales Data Sheet's own columns — Month | Department | Agent Name | Salary of all |
+// Other Cost (Email/Incentive) — matched back onto each manager row by (month, department,
+// agent name), the same granularity as the Sales Data Sheet's own per-manager buckets.
+async function resolveCostSheetTabTitle(sheetId){
+  const data = await apiFetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties`);
+  const sheets = data.sheets || [];
+  const named = sheets.find(s => /cost/i.test(s.properties.title));
+  return named ? named.properties.title : (sheets[0] ? sheets[0].properties.title : null);
+}
+function parseCostRows(rows){
+  const lookup = {}; // "monthKey|deptId|agentName" -> {salary, otherCost}
+  if(!rows.length) return lookup;
+  let colMap = {};
+  rows[0].forEach((cell, i) => {
+    const text = (cell || '').trim();
+    const k = /^month$/i.test(text) ? 'month' : /^department$/i.test(text) ? 'department' : matchHeader(text);
+    if(k && colMap[k] === undefined) colMap[k] = i;
+  });
+  if(colMap.month === undefined || colMap.department === undefined || colMap.name === undefined) return lookup;
+  const num = (row, key) => {
+    if(colMap[key] === undefined) return null;
+    const raw = (row[colMap[key]] || '').replace(/[₹,%\s]/g, '');
+    if(raw === '') return null;
+    const v = parseFloat(raw);
+    return isNaN(v) ? null : v;
+  };
+  for(let r = 1; r < rows.length; r++){
+    const row = rows[r];
+    const monthText = (row[colMap.month] || '').trim();
+    const nameText = (row[colMap.name] || '').trim();
+    if(!monthText || !nameText) continue;
+    const parsed = parseMonthCell(monthText);
+    if(!parsed) continue;
+    const monthKey = parsed.year + '-' + String(parsed.month).padStart(2, '0');
+    const deptText = (row[colMap.department] || '').trim();
+    const deptId = deptIdFromText(deptText);
+    if(!deptId) continue;
+    const salary = num(row, 'salary');
+    const otherCost = num(row, 'otherCost');
+    if(salary === null && otherCost === null) continue;
+    lookup[monthKey + '|' + deptId + '|' + nameText] = {
+      salary: salary === null ? undefined : salary,
+      otherCost: otherCost === null ? undefined : otherCost
+    };
+  }
+  return lookup;
+}
+async function fetchCostData(){
+  if(!COST_SHEET_ID) return {};
+  if(!COST_SHEET_TAB){
+    COST_SHEET_TAB = await resolveCostSheetTabTitle(COST_SHEET_ID);
+    if(!COST_SHEET_TAB) throw new Error('Could not locate a tab in the Cost Data Sheet');
+  }
+  const range = encodeURIComponent(`'${COST_SHEET_TAB.replace(/'/g, "''")}'!A1:Z5000`);
+  const data = await apiFetch(`https://sheets.googleapis.com/v4/spreadsheets/${COST_SHEET_ID}/values/${range}?valueRenderOption=FORMATTED_VALUE`);
+  return parseCostRows(data.values || []);
 }
 
 // ---------- QUALITY DATA SHEET (one sheet, every department, one row per QA evaluation) ----------
@@ -3115,17 +3249,64 @@ async function onClearQualitySheet(){
     errEl.style.display = 'block';
   }
 }
+function renderCostSheetStatus(){
+  const input = document.getElementById('cost-sheet-input');
+  if(input) input.value = COST_SHEET_ID || '';
+  const el = document.getElementById('cost-sheet-status');
+  if(!el) return;
+  if(!COST_SHEET_ID){
+    el.innerHTML = '<span style="color:var(--text-muted);">Not connected yet — Salary/Other Cost will only come from the main Sales Data Sheet (if still present there) until this is set.</span>';
+    return;
+  }
+  el.innerHTML = costFieldsAllowed
+    ? '✅ Connected · refreshes along with the Sales Data Sheet for anyone with "Salary / Cost data" access'
+    : '✅ Connected · (you personally don\'t have "Salary / Cost data" access checked, so this account never fetches it)';
+}
+async function onSaveCostSheet(){
+  const errEl = document.getElementById('cost-sheet-error');
+  errEl.style.display = 'none';
+  const raw = document.getElementById('cost-sheet-input').value.trim();
+  if(!raw){ errEl.textContent = 'Paste a Sheet link or ID first.'; errEl.style.display = 'block'; return; }
+  const btn = document.getElementById('cost-sheet-save');
+  btn.disabled = true;
+  try{
+    await saveCostSheet(raw);
+    await refreshAllFromSheet(false);
+    renderCostSheetStatus();
+  } catch(err){
+    errEl.textContent = describeAccessError(err, 'save the Cost Data Sheet');
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+  }
+}
+async function onClearCostSheet(){
+  if(!confirm('Disconnect the Cost Data Sheet? Salary/Other Cost will only come from the main Sales Data Sheet (if still present there) until this (or a replacement) is reconnected.')) return;
+  const errEl = document.getElementById('cost-sheet-error');
+  errEl.style.display = 'none';
+  try{
+    await clearCostSheet();
+    renderCostSheetStatus();
+    await refreshAllFromSheet(false);
+  } catch(err){
+    errEl.textContent = describeAccessError(err, 'disconnect the Cost Data Sheet');
+    errEl.style.display = 'block';
+  }
+}
 function renderDeptsAdminView(){
   hideDeptsError();
   const sharedErrEl = document.getElementById('shared-sheet-error');
   if(sharedErrEl) sharedErrEl.style.display = 'none';
   const qualityErrEl = document.getElementById('quality-sheet-error');
   if(qualityErrEl) qualityErrEl.style.display = 'none';
+  const costErrEl = document.getElementById('cost-sheet-error');
+  if(costErrEl) costErrEl.style.display = 'none';
   renderDeptFormSelect();
   fillDeptForm(document.getElementById('dept-form-select').value || DEPARTMENTS[0].id);
   renderDeptsList();
   renderSharedSheetStatus();
   renderQualitySheetStatus();
+  renderCostSheetStatus();
 }
 
 // ---------- PRESENCE ("Who's Online") + EDIT LOG ----------
