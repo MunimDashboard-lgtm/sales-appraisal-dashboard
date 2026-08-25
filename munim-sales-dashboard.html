@@ -752,6 +752,71 @@ function waitForGoogleIdentity(cb, attemptsLeft){
   if(attemptsLeft <= 0){ showGateError('Could not load Google Sign-In. Check your connection and reload the page.'); return; }
   setTimeout(() => waitForGoogleIdentity(cb, attemptsLeft - 1), 50);
 }
+// ---------- SESSION PERSISTENCE (survive a plain browser refresh) ----------
+// accessToken/currentUser used to be plain in-memory JS variables with no localStorage/
+// sessionStorage backing, so ANY full page reload (not the in-app "🔄 Refresh" button, which
+// never touches auth at all) always dropped back to the visible "Sign in to view this dashboard"
+// gate — that's what was being reported as "auto logout on refresh". A Google access token is
+// normally valid for about an hour; we now cache it (plus its expiry and the signed-in identity)
+// in localStorage, so an ordinary refresh within that hour resumes with ZERO Google calls and no
+// popup — instant, no re-login. We deliberately do NOT also try a silent, click-free Google
+// re-authorization once the cached token expires: browsers (confirmed live — Chrome logs "Failed
+// to open popup window... Maybe blocked by the browser?") block the popup that flow needs unless
+// it's triggered by a real click, so attempting it automatically on load can only ever fail there
+// — it would just stall the gate behind a few pointless seconds before falling back to the same
+// "Sign in with Google" button anyway. Only signOut() below clears this cache (it also revokes
+// the token with Google), so it stays true that only an explicit Sign Out really ends the session
+// — everything else (including this being the ~1 hour lifetime of a token with no backend to
+// refresh it) is a hard limit of doing OAuth without a server, not a bug.
+const SESSION_STORAGE_KEY = 'munimDashSession';
+function persistSession(expiresInSeconds){
+  if(!accessToken || !currentUser) return;
+  try{
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({
+      accessToken,
+      currentUser,
+      // Trim a minute off the real expiry as a safety margin against clock drift/API latency —
+      // apiFetch's own 401 handling below is still the real backstop if this estimate runs long.
+      expiresAt: Date.now() + Math.max(0, (expiresInSeconds || 3600) - 60) * 1000
+    }));
+  } catch(err){ /* localStorage unavailable/full — session just won't survive a reload */ }
+}
+function loadPersistedSession(){
+  try{
+    const raw = localStorage.getItem(SESSION_STORAGE_KEY);
+    if(!raw) return null;
+    const s = JSON.parse(raw);
+    if(!s || !s.accessToken || !s.currentUser || !s.expiresAt || Date.now() >= s.expiresAt) return null;
+    return s;
+  } catch(err){ return null; }
+}
+function clearPersistedSession(){
+  try{ localStorage.removeItem(SESSION_STORAGE_KEY); } catch(err){}
+}
+// Runs once on every page load. If a still-valid cached token exists, restore straight from it
+// and re-verify against the dashboard's own access list (runAccessCheck) — no Google round trip,
+// no popup, no visible flicker of the sign-in button. If that cached token turns out to be dead
+// (revoked outside this app, since our expiry estimate is just a guess) we drop it so a later
+// load doesn't keep retrying a token that will never work; a plain access-denial (403 — this
+// account just isn't on the dashboard's allow-list) leaves the cached token alone since nothing
+// is actually wrong with the sign-in itself.
+async function resumeSessionOnLoad(){
+  const cached = loadPersistedSession();
+  if(!cached) return; // nothing to resume — the ordinary "Sign in with Google" button is the right next step
+  const btn = document.getElementById('gsi-signin-btn');
+  const checking = document.getElementById('gate-checking');
+  if(btn) btn.style.display = 'none';
+  if(checking) checking.style.display = '';
+  accessToken = cached.accessToken;
+  currentUser = cached.currentUser;
+  await runAccessCheck();
+  if(checking) checking.style.display = 'none';
+  if(document.getElementById('app-root').style.display === 'block') return; // resumed successfully
+  if(btn && btn.style.display !== 'none'){ // runAccessCheck only re-shows this button for a real 401 (dead token)
+    accessToken = null; currentUser = null; clearPersistedSession();
+  }
+}
+
 function initGoogleAuth(){
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: OAUTH_CLIENT_ID,
@@ -759,39 +824,7 @@ function initGoogleAuth(){
     callback: handleTokenResponse
   });
   document.getElementById('gsi-signin-btn').disabled = false;
-  attemptAutoSignIn();
-}
-
-// Runs once on every page load (this covers a literal browser refresh/reload, not just the
-// in-app "Refresh" button, which never touches auth at all). accessToken/currentUser are plain
-// in-memory JS variables with no localStorage/sessionStorage backing, so without this, every
-// reload would always land on the visible "Sign in to view this dashboard" gate — which is what
-// was being reported as "auto logout on refresh". Instead, try a SILENT token request first
-// (prompt:'') — this succeeds with no visible popup/consent screen as long as the browser still
-// has this person's Google session active AND they haven't explicitly signed out (signOut()
-// below revokes the grant, which is what makes the silent request start failing again — so an
-// explicit Sign Out is still the only thing that really logs someone out). If the silent request
-// fails for any reason (no active Google session, revoked consent, brand-new visitor), we simply
-// fall back to the ordinary visible sign-in button — nothing breaks for a first-time viewer.
-function attemptAutoSignIn(){
-  const btn = document.getElementById('gsi-signin-btn');
-  const checking = document.getElementById('gate-checking');
-  if(btn) btn.style.display = 'none';
-  if(checking) checking.style.display = '';
-  const restore = tokenClient.callback;
-  tokenClient.callback = async (resp) => {
-    tokenClient.callback = restore;
-    if(checking) checking.style.display = 'none';
-    if(resp.error){
-      if(btn) btn.style.display = ''; // no active/consented Google session — show the normal gate
-      return;
-    }
-    accessToken = resp.access_token;
-    try{ currentUser = await fetchUserInfo(); }
-    catch(err){ console.warn('userinfo fetch failed', err); currentUser = null; }
-    await runAccessCheck();
-  };
-  tokenClient.requestAccessToken({ prompt: '' });
+  resumeSessionOnLoad();
 }
 
 function signIn(){
@@ -806,14 +839,15 @@ function retryAccessCheck(){
   hideGateError();
   runAccessCheck();
 }
-// Explicit sign-out is the ONLY thing that should end the session (see attemptAutoSignIn above)
-// — revoking the token here invalidates this account's consent grant for the dashboard, so the
-// next page load's silent auto-sign-in attempt correctly fails and shows the real sign-in gate,
-// instead of quietly resuming.
+// Explicit sign-out is the ONLY thing that should end the session (see resumeSessionOnLoad above)
+// — revoking the token tells Google to invalidate this account's consent grant, and clearing the
+// cached copy means the next page load has nothing to resume from, so it correctly lands back on
+// the real sign-in gate instead of quietly resuming.
 function signOut(){
   if(accessToken) google.accounts.oauth2.revoke(accessToken, () => {});
   accessToken = null;
   currentUser = null;
+  clearPersistedSession();
   location.reload();
 }
 
@@ -826,6 +860,7 @@ function requestTokenSilently(){
       tokenClient.callback = restore;
       if(resp.error){ reject(resp); return; }
       accessToken = resp.access_token;
+      persistSession(resp.expires_in); // keep the cached copy in sync so a later refresh still resumes
       resolve(resp);
     };
     tokenClient.requestAccessToken({ prompt: '' });
@@ -1005,6 +1040,7 @@ async function handleTokenResponse(resp){
   accessToken = resp.access_token;
   try{ currentUser = await fetchUserInfo(); }
   catch(err){ console.warn('userinfo fetch failed', err); currentUser = null; }
+  persistSession(resp.expires_in); // cache so the NEXT page load (a plain refresh) can resume without clicking again
   await runAccessCheck();
 }
 
