@@ -198,6 +198,13 @@
   .card-fields-panel[hidden]{ display:none; }
   .card-fields-grid{ display:grid; grid-template-columns: repeat(3, 1fr); gap:8px 16px; }
   @media (max-width: 720px){ .card-fields-grid{ grid-template-columns: repeat(2, 1fr); } }
+  .cf-tabs{ display:flex; gap:6px; flex-wrap:wrap; }
+  .cf-tab{
+    font-family:inherit; font-size:11.5px; font-weight:600; padding:5px 12px; border-radius:999px;
+    border:1px solid var(--border); background:var(--page-plane); color:var(--text-secondary); cursor:pointer;
+  }
+  [data-theme="dark"] .cf-tab{ background:#141413; }
+  .cf-tab.active{ background:var(--series-1); border-color:var(--series-1); color:#fff; }
   .card-fields-default-row{
     display:flex; align-items:center; gap:10px; flex-wrap:wrap;
     padding-top:12px; border-top:1px solid var(--border);
@@ -335,6 +342,15 @@
     background:var(--surface-1); color:var(--text-primary);
   }
   .dept-checkbox-list{ display:flex; flex-wrap:wrap; gap:10px 16px; margin-top:2px; }
+  .kra-weights-grid{ display:flex; flex-direction:column; gap:8px; max-width:520px; }
+  .kra-weights-grid label{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    font-size:12.5px; color:var(--text-secondary);
+  }
+  .kra-weights-grid input[type="number"]{
+    font-family:inherit; font-size:12.5px; padding:6px 8px; border-radius:8px; border:1px solid var(--border);
+    background:var(--surface-1); color:var(--text-primary); width:64px; text-align:right;
+  }
   .dept-check{ display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text-secondary); }
   .dept-tag{
     display:inline-block; background:var(--page-plane); border:1px solid var(--border); border-radius:999px;
@@ -453,6 +469,7 @@
       <div class="card-fields-panel" id="card-fields-panel" hidden></div>
 
       <div class="manager-grid" id="manager-rollup-grid"></div>
+      <div class="manager-grid" id="tl-rollup-grid"></div>
       <div class="manager-grid" id="manager-grid"></div>
     </div>
 
@@ -521,6 +538,20 @@
     </div>
   </section>
 
+  <section id="company-view" hidden>
+    <div class="card compare-card">
+      <h3>🏢 Company View — cumulative across departments</h3>
+      <div class="card-sub">Combines Target/Achieved/BDEs/Sales across however many departments you check below, for one month at a time. Only departments allowed for your sign-in appear here. Departments that don't track Target/Achievement — Quality, and usually Support — start unchecked automatically, but you can still tick them on by hand if that's ever not right for a given month.</div>
+      <div class="range-picker">
+        <label>Month <select id="company-view-month" onchange="onCompanyViewMonthChange(this.value)"></select></label>
+      </div>
+      <div class="card-sub" style="margin:10px 0 4px;">Departments included:</div>
+      <div class="dept-checkbox-list" id="company-view-depts"></div>
+    </div>
+
+    <div id="company-view-body"></div>
+  </section>
+
   <section id="access-view" hidden>
     <div class="card compare-card">
       <h3>Manage dashboard access</h3>
@@ -546,6 +577,22 @@
       <h3>🏆 Topper photos</h3>
       <div class="card-sub">One photo for each department's Top/2nd/3rd performer, shown in the "Toppers of Munim" section everyone sees. Paste a Google Drive/Photos share link (or any public image link) — there's no device-upload button here, since that needs a Google permission that broke sign-in for everyone the one time it was turned on; ask Amit before changing that.</div>
       <div id="topper-photos-admin"></div>
+    </div>
+
+    <div class="card compare-card">
+      <h3>🧩 Default fields per role</h3>
+      <div class="card-sub">Pick which optional stats show by default on Agent cards, Manager rollup cards, and Team Lead rollup cards — applies dashboard-wide, for anyone who hasn't saved their own "📌 Save as default" view for a department (a personal saved default still wins over this). On Manager/Team Lead rollup cards these show as the team's total (or the team's average, for %-style fields like "% Achieved") — on Agent cards they show that agent's own figure.</div>
+      <div class="access-error" id="tier-fields-error"></div>
+      <div class="dept-form">
+        <div class="cf-tabs" id="tier-fields-tabs"></div>
+        <div class="card-sub" id="tier-fields-tier-label" style="margin:0;"></div>
+        <div id="tier-fields-admin-grid" class="card-fields-grid"></div>
+        <div style="display:flex; gap:8px;">
+          <button class="icon-btn" id="tier-fields-save" onclick="onSaveTierFieldsDefault()">💾 Save default for this tier</button>
+          <button class="reset-link" onclick="onResetTierFieldsDefault()">Reset to none</button>
+        </div>
+      </div>
+      <div class="card-sub" id="tier-fields-status" style="margin-top:10px;"></div>
     </div>
   </section>
 
@@ -611,6 +658,24 @@
         </label>
         <button class="icon-btn" id="dept-form-save" onclick="onSaveDeptConfig()" style="align-self:flex-start;">💾 Save department</button>
       </div>
+    </div>
+
+    <div class="card compare-card">
+      <h3>KRA weightage per department</h3>
+      <div class="card-sub">Every department scores the same 6 KRAs, but each can weight them differently — the standard split is Team Sales Achievement 60% / Conversion &amp; Productivity 15% / Expansion 10% / Attrition 5% / Leadership 5% / Reporting 5%. Weights for one department must add up to 100%; leave a department alone to keep the standard split.</div>
+      <div class="access-error" id="kra-weights-error"></div>
+      <div class="dept-form">
+        <label>Department
+          <select id="kra-weights-dept-select" onchange="fillKraWeightsForm(this.value)"></select>
+        </label>
+        <div id="kra-weights-inputs" class="kra-weights-grid"></div>
+        <div class="card-sub" id="kra-weights-total" style="margin:0;"></div>
+        <div style="display:flex; gap:8px;">
+          <button class="icon-btn" id="kra-weights-save" onclick="onSaveKraWeights()">💾 Save weights</button>
+          <button class="reset-link" onclick="onResetKraWeights()">Reset to standard 60/15/10/5/5/5</button>
+        </div>
+      </div>
+      <div class="card-sub" id="kra-weights-status" style="margin-top:10px;"></div>
     </div>
 
     <div class="card compare-card">
@@ -727,14 +792,24 @@ let ORIGINAL_MONTHS = JSON.parse(JSON.stringify(MONTHS));
 // keep computing off the real achieved/revNoGst fields exactly as recomputeManager/computeAllScores
 // already do — only what's shown to the viewer as "Achieved" (and any %/ratio built FROM that
 // shown figure) changes.
+// Dept-aware versions of the two functions below — needed anywhere that sums/derives figures
+// for a row that ISN'T necessarily in currentDept (e.g. the Company View's cumulative totals,
+// which combine rows from several departments' own byDept buckets at once). currentDept-scoped
+// displayAchievement/displayPctAchv just delegate to these for the common single-department case.
+function displayAchievementForDept(m, deptId){
+  return deptId === 'FST' ? m.achieved : m.revNoGst;
+}
+function displayPctAchvForDept(m, deptId){
+  return m.target > 0 ? (displayAchievementForDept(m, deptId) / m.target) * 100 : 0;
+}
 function displayAchievement(m){
-  return currentDept === 'FST' ? m.achieved : m.revNoGst;
+  return displayAchievementForDept(m, currentDept);
 }
 // Same idea as m.pctAchv (see recomputeManager), but built from displayAchievement(m) instead of
 // the raw m.achieved — for display-only percentage call sites that must track whichever
 // "Achieved" figure is actually on screen (e.g. renderPctAchvChart, the % Achieved card field).
 function displayPctAchv(m){
-  return m.target > 0 ? (displayAchievement(m) / m.target) * 100 : 0;
+  return displayPctAchvForDept(m, currentDept);
 }
 
 // ---------- GOOGLE SIGN-IN + AUTHENTICATED SHEETS API ----------
@@ -1092,6 +1167,9 @@ function decodeDeptConfig(raw){
 // first, see applyDeptSheetConfigFromProps) even though 'dashDeptPhoto_' textually starts with
 // 'dashDept_' too — the two must never be confused for one another.
 function deptPhotoKey(deptId, rank){ return 'dashDeptPhoto_' + deptId + '_' + rank; }
+// One appProperties key per card tier for the admin's dashboard-wide default field selection —
+// see "🧩 Default fields per role" under Manage Access and DEFAULT_TIER_FIELDS below.
+function tierFieldsDefaultKey(tier){ return 'dashFieldsDefault_' + tier; }
 // Accepts either a full Google Sheets URL or a bare spreadsheet ID and returns just the ID.
 function extractSheetId(input){
   const s = (input || '').trim();
@@ -1125,6 +1203,26 @@ function applyDeptSheetConfigFromProps(props){
     photos[m[1]][m[2]] = props[k];
   });
   DEPT_PHOTOS = photos;
+  // Per-department KRA weight overrides — dashKraWeights_<deptId> -> JSON {key: weight, ...}.
+  // Only departments an admin has actually saved custom weights for appear here; see
+  // kraDefForDept, which falls back to DEFAULT_KRA_DEF's 60/15/10/5/5/5 for everyone else.
+  const kraWeights = {};
+  Object.keys(props).forEach(k => {
+    const m = /^dashKraWeights_(.+)$/.exec(k);
+    if(!m) return;
+    try{ const parsed = JSON.parse(props[k]); if(parsed && typeof parsed === 'object') kraWeights[m[1]] = parsed; }
+    catch(e){ console.warn('Bad dashKraWeights_ value for', m[1], e); }
+  });
+  DEPT_KRA_WEIGHTS = kraWeights;
+  // Admin's dashboard-wide default visible fields per card tier — dashFieldsDefault_<tier> ->
+  // comma-joined CARD_FIELD_DEFS keys. Missing/blank for a tier just means "no extra fields by
+  // default" for that tier, same as this dashboard's original behavior.
+  const tierDefaults = { agent: [], manager: [], tl: [] };
+  Object.keys(tierDefaults).forEach(t => {
+    const raw = props[tierFieldsDefaultKey(t)];
+    if(raw) tierDefaults[t] = raw.split(',').filter(Boolean);
+  });
+  DEFAULT_TIER_FIELDS = tierDefaults;
 }
 
 // ---------- TOP PERFORMER PHOTOS (per department, per rank slot 1/2/3) ----------
@@ -1473,6 +1571,7 @@ async function switchDepartment(deptId){
   currentView = 'month';
   renderDeptSubtitle();
   renderSourceLine();
+  renderKraReference(); // this department's own weight split may differ — see kraDefForDept
   renderMonthTabs();
   renderDataStatus();
   renderMonthView(currentMonth);
@@ -2220,7 +2319,10 @@ function manualRefresh(){
   refreshAllFromSheet(true);
 }
 
-const KRA_DEF = [
+// The standard split — used as-is for any department that hasn't been given its own weights
+// (see DEPT_KRA_WEIGHTS/kraDefForDept below). The 6 KRA categories themselves (key/label/manual)
+// are always the same across every department; only the weight% differs.
+const DEFAULT_KRA_DEF = [
   {key:'sales', label:'Team Sales Achievement / Revenue', weight:60, manual:false},
   {key:'productivity', label:'Team Conversion & Sales Productivity', weight:15, manual:false},
   {key:'expansion', label:'Team Expansion & Capacity Building', weight:10, manual:false},
@@ -2228,6 +2330,30 @@ const KRA_DEF = [
   {key:'leadership', label:'Team Handling, Leadership & Performance Mgmt', weight:5, manual:true},
   {key:'reporting', label:'Reporting, Process & Management Discipline', weight:5, manual:true}
 ];
+// deptId -> {key: weight, ...} — only departments an admin has actually customized appear here;
+// everyone else keeps DEFAULT_KRA_DEF's 60/15/10/5/5/5 untouched. Populated at sign-in from Drive
+// appProperties (dashKraWeights_<deptId>, see applyDeptSheetConfigFromProps) and patched in place
+// by onSaveKraWeights/onResetKraWeights below.
+let DEPT_KRA_WEIGHTS = {};
+// The KRA list to actually score/display for a given department — same keys/labels/manual flags
+// as DEFAULT_KRA_DEF always, with that department's own weight% substituted in where it has one.
+// Every call site that used to read the old flat KRA_DEF constant now calls this instead, scoped
+// to whichever department it's currently rendering for (almost always currentDept, exactly like
+// displayAchievement/displayPctAchv already scope themselves).
+function kraDefForDept(deptId){
+  const overrides = DEPT_KRA_WEIGHTS[deptId];
+  if(!overrides) return DEFAULT_KRA_DEF;
+  return DEFAULT_KRA_DEF.map(k => ({...k, weight: overrides[k.key] !== undefined ? overrides[k.key] : k.weight}));
+}
+function kraWeightsKey(deptId){ return 'dashKraWeights_' + deptId; }
+
+// { agent: [...keys], manager: [...keys], tl: [...keys] } — the admin's dashboard-wide default
+// visible fields per card tier (see "🧩 Default fields per role" under Manage Access). Applied
+// by applyDeptDefaultView as the starting point before this viewer's own saved per-department
+// default (if any) overrides it. Populated at sign-in from Drive appProperties
+// (dashFieldsDefault_<tier>, see applyDeptSheetConfigFromProps) and patched in place by
+// onSaveTierFieldsDefault/onResetTierFieldsDefault below.
+let DEFAULT_TIER_FIELDS = { agent: [], manager: [], tl: [] };
 
 const COLORS = ['var(--series-1)','var(--series-2)','var(--series-3)','var(--series-4)'];
 // { "jul|Aakash|leadership": 4, ... } — deliberately NOT scoped per department (unlike
@@ -2308,7 +2434,7 @@ function computeAllScores(m, monthKey, monthData){
     reporting: getManualScore(monthKey, m.name, 'reporting', m.department)
   };
   let weighted = 0, pending = [], totalWeight = 0;
-  KRA_DEF.forEach(k => {
+  kraDefForDept(currentDept).forEach(k => {
     let s = scores[k.key];
     if(s === null && !k.manual) return; // not applicable yet — excluded from weighting
     if(k.manual){
@@ -2531,66 +2657,87 @@ function renderPctAchvChart(monthKey){
 // (No. of Sale used to live here too, but is now always shown on the card face — see
 // renderManagerCards — so it's been promoted out of this optional list.)
 const CARD_FIELD_DEFS = [
-  {key:'revNoGst', label:'Revenue (w/o GST)', get:m=>m.revNoGst, fmt:v=>fmtINR(v)},
-  {key:'pctAchv', label:'% Achieved', get:m=>displayPctAchv(m), fmt:v=>v.toFixed(1)+'%'},
-  {key:'avgPerBde', label:'Avg Revenue / BDE', get:m=>m.avgPerBde, fmt:v=>fmtINR(v)},
-  {key:'salary', label:'Salary Cost', get:m=>m.salary, fmt:v=>fmtINR(v)},
-  {key:'otherCost', label:'Other Cost', get:m=>m.otherCost, fmt:v=>fmtINR(v)},
-  {key:'totalCost', label:'Total Cost', get:m=>m.totalCost, fmt:v=>fmtINR(v)},
-  {key:'leftForRoi', label:'Left for ROI', get:m=>m.leftForRoi, fmt:v=>fmtINR(v)},
-  {key:'avgBdeRevenue', label:'Avg BDE Revenue', get:m=>m.avgBdeRevenue, fmt:v=>fmtINR(v)},
-  {key:'expansionTarget', label:'Expansion Target', get:m=>m.expansionTarget, fmt:v=>fmtNum(v)},
-  {key:'expansionTargetAchieved', label:'Expansion Achieved', get:m=>m.expansionTargetAchieved, fmt:v=>fmtNum(v)},
-  {key:'avgSalesPerExec', label:'Avg Sales / Exec', get:m=>m.avgSalesPerExec, fmt:v=>fmtNum(v)},
-  {key:'avgMeetingPerExec', label:'Avg Meetings / Exec', get:m=>m.avgMeetingPerExec, fmt:v=>fmtNum(v)},
-  {key:'m0Count', label:'M0 Agent Count', get:m=>m.m0Count, fmt:v=>fmtNum(v)},
-  {key:'m1Count', label:'M1 Agent Count', get:m=>m.m1Count, fmt:v=>fmtNum(v)},
-  {key:'m2Count', label:'M2 Agent Count', get:m=>m.m2Count, fmt:v=>fmtNum(v)},
-  {key:'m2PlusCount', label:'M2+ Agent Count', get:m=>m.m2PlusCount, fmt:v=>fmtNum(v)},
-  {key:'attritionPct', label:'Attrition %', get:m=>m.attritionPct, fmt:v=>v.toFixed(1)+'%'},
+  {key:'revNoGst', label:'Revenue (w/o GST)', get:m=>m.revNoGst, fmt:v=>fmtINR(v), agg:'sum'},
+  {key:'pctAchv', label:'% Achieved', get:m=>displayPctAchv(m), fmt:v=>v.toFixed(1)+'%', agg:'avg'},
+  {key:'avgPerBde', label:'Avg Revenue / BDE', get:m=>m.avgPerBde, fmt:v=>fmtINR(v), agg:'avg'},
+  {key:'salary', label:'Salary Cost', get:m=>m.salary, fmt:v=>fmtINR(v), agg:'sum'},
+  {key:'otherCost', label:'Other Cost', get:m=>m.otherCost, fmt:v=>fmtINR(v), agg:'sum'},
+  {key:'totalCost', label:'Total Cost', get:m=>m.totalCost, fmt:v=>fmtINR(v), agg:'sum'},
+  {key:'leftForRoi', label:'Left for ROI', get:m=>m.leftForRoi, fmt:v=>fmtINR(v), agg:'sum'},
+  {key:'avgBdeRevenue', label:'Avg BDE Revenue', get:m=>m.avgBdeRevenue, fmt:v=>fmtINR(v), agg:'avg'},
+  {key:'expansionTarget', label:'Expansion Target', get:m=>m.expansionTarget, fmt:v=>fmtNum(v), agg:'sum'},
+  {key:'expansionTargetAchieved', label:'Expansion Achieved', get:m=>m.expansionTargetAchieved, fmt:v=>fmtNum(v), agg:'sum'},
+  {key:'avgSalesPerExec', label:'Avg Sales / Exec', get:m=>m.avgSalesPerExec, fmt:v=>fmtNum(v), agg:'avg'},
+  {key:'avgMeetingPerExec', label:'Avg Meetings / Exec', get:m=>m.avgMeetingPerExec, fmt:v=>fmtNum(v), agg:'avg'},
+  {key:'m0Count', label:'M0 Agent Count', get:m=>m.m0Count, fmt:v=>fmtNum(v), agg:'sum'},
+  {key:'m1Count', label:'M1 Agent Count', get:m=>m.m1Count, fmt:v=>fmtNum(v), agg:'sum'},
+  {key:'m2Count', label:'M2 Agent Count', get:m=>m.m2Count, fmt:v=>fmtNum(v), agg:'sum'},
+  {key:'m2PlusCount', label:'M2+ Agent Count', get:m=>m.m2PlusCount, fmt:v=>fmtNum(v), agg:'sum'},
+  {key:'attritionPct', label:'Attrition %', get:m=>m.attritionPct, fmt:v=>v.toFixed(1)+'%', agg:'avg'},
   // Per-cohort sales counts added to the Sales Data Sheet — how many sales came from agents
   // at each tenure milestone (M0/M1/M2/M2+/M3+), and from agents that many months before or
   // after that milestone (-M1/-M2/-M3+).
-  {key:'salesM0', label:'Sales – M0', get:m=>m.salesM0, fmt:v=>fmtNum(v)},
-  {key:'salesM1', label:'Sales – M1', get:m=>m.salesM1, fmt:v=>fmtNum(v)},
-  {key:'salesM2', label:'Sales – M2', get:m=>m.salesM2, fmt:v=>fmtNum(v)},
-  {key:'salesM2Plus', label:'Sales – M2+', get:m=>m.salesM2Plus, fmt:v=>fmtNum(v)},
-  {key:'salesM3Plus', label:'Sales – M3+', get:m=>m.salesM3Plus, fmt:v=>fmtNum(v)},
-  {key:'salesMinus1', label:'Sales – -M1', get:m=>m.salesMinus1, fmt:v=>fmtNum(v)},
-  {key:'salesMinus2', label:'Sales – -M2', get:m=>m.salesMinus2, fmt:v=>fmtNum(v)},
-  {key:'salesMinus3Plus', label:'Sales – -M3+', get:m=>m.salesMinus3Plus, fmt:v=>fmtNum(v)}
+  {key:'salesM0', label:'Sales – M0', get:m=>m.salesM0, fmt:v=>fmtNum(v), agg:'sum'},
+  {key:'salesM1', label:'Sales – M1', get:m=>m.salesM1, fmt:v=>fmtNum(v), agg:'sum'},
+  {key:'salesM2', label:'Sales – M2', get:m=>m.salesM2, fmt:v=>fmtNum(v), agg:'sum'},
+  {key:'salesM2Plus', label:'Sales – M2+', get:m=>m.salesM2Plus, fmt:v=>fmtNum(v), agg:'sum'},
+  {key:'salesM3Plus', label:'Sales – M3+', get:m=>m.salesM3Plus, fmt:v=>fmtNum(v), agg:'sum'},
+  {key:'salesMinus1', label:'Sales – -M1', get:m=>m.salesMinus1, fmt:v=>fmtNum(v), agg:'sum'},
+  {key:'salesMinus2', label:'Sales – -M2', get:m=>m.salesMinus2, fmt:v=>fmtNum(v), agg:'sum'},
+  {key:'salesMinus3Plus', label:'Sales – -M3+', get:m=>m.salesMinus3Plus, fmt:v=>fmtNum(v), agg:'sum'}
 ];
 // Session-only, like manualScores/openEditPanels above — resets on reload, never written to
-// any Sheet. Empty by default = "keep the same what right now" for every new viewer.
-let visibleCardFields = new Set();
+// any Sheet. Empty by default = "keep whatever the admin's dashboard-wide default (or nothing)
+// says" for every new viewer — see DEFAULT_TIER_FIELDS/applyDeptDefaultView below. Three
+// independent sets — one per card tier this dashboard renders (Agent / Manager rollup / Team
+// Lead rollup) — since an admin (and each viewer) can choose different stats to show on each.
+let visibleFieldsAgent = new Set();
+let visibleFieldsManager = new Set();
+let visibleFieldsTL = new Set();
+function visibleFieldsForTier(tier){
+  return tier === 'manager' ? visibleFieldsManager : tier === 'tl' ? visibleFieldsTL : visibleFieldsAgent;
+}
 // The fields this signed-in viewer is actually allowed to pick from — same list as
 // CARD_FIELD_DEFS, minus the pay-sensitive cost fields for anyone costFieldsAllowed hasn't been
 // turned on for (see the COST DATA ACCESS section above). Admins always get the full list.
 function allowedCardFieldDefs(){
   return costFieldsAllowed ? CARD_FIELD_DEFS : CARD_FIELD_DEFS.filter(f => !COST_FIELD_KEYS.includes(f.key));
 }
+// Which tier's checkboxes the "⚙ Customize fields" panel is currently showing — session-only,
+// stays put across department switches so the viewer isn't dropped back to "Agent cards" every
+// time they change department.
+let cfPanelTier = 'agent';
+const CF_TIER_LABELS = { agent: 'Agent cards', manager: 'Manager rollup cards', tl: 'Team Lead rollup cards' };
+function setCfPanelTier(tier){ cfPanelTier = tier; renderCardFieldsPanel(); }
 function renderCardFieldsPanel(){
   const el = document.getElementById('card-fields-panel');
   if(!el) return;
+  const tabs = Object.keys(CF_TIER_LABELS).map(t =>
+    `<button class="cf-tab ${cfPanelTier === t ? 'active' : ''}" onclick="setCfPanelTier('${t}')">${CF_TIER_LABELS[t]}</button>`).join('');
+  const visible = visibleFieldsForTier(cfPanelTier);
   const grid = allowedCardFieldDefs().map(f => `
     <label class="cf-check">
-      <input type="checkbox" ${visibleCardFields.has(f.key)?'checked':''} onchange="toggleCardField('${f.key}', this.checked)">
+      <input type="checkbox" ${visible.has(f.key)?'checked':''} onchange="toggleCardField('${f.key}', this.checked)">
       ${f.label}
     </label>`).join('');
   // Save/Clear default view live here too (alongside the top-bar buttons) since this panel is
   // where "which fields show" gets decided, and the saved default is per-department — saving
-  // one here only affects ${deptName(currentDept)}, never any other department.
+  // one here saves all three tiers' choices together, but only for ${deptName(currentDept)}.
   const footer = currentUser ? `
     <div class="card-fields-default-row">
-      <button class="icon-btn" onclick="saveDefaultView()" title="Remembers the team filter, comparison level and these field choices for ${deptName(currentDept)} only, and loads them automatically next time.">📌 Save as default for ${deptName(currentDept)}</button>
+      <button class="icon-btn" onclick="saveDefaultView()" title="Remembers the team filter, comparison level and all three tiers' field choices for ${deptName(currentDept)} only, and loads them automatically next time.">📌 Save as default for ${deptName(currentDept)}</button>
       <button class="icon-btn" onclick="clearDefaultView()">✖ Clear default for ${deptName(currentDept)}</button>
       <span class="cf-default-note">Each department remembers its own default separately — saving or clearing here only affects ${deptName(currentDept)}.</span>
     </div>` : '';
-  el.innerHTML = `<div class="card-fields-grid">${grid}</div>${footer}`;
+  el.innerHTML = `<div class="cf-tabs">${tabs}</div><div class="card-fields-grid">${grid}</div>${footer}`;
 }
 function toggleCardField(key, checked){
-  if(checked) visibleCardFields.add(key); else visibleCardFields.delete(key);
-  if(currentView === 'month') renderManagerCards(currentMonth);
+  const set = visibleFieldsForTier(cfPanelTier);
+  if(checked) set.add(key); else set.delete(key);
+  if(currentView !== 'month') return;
+  if(cfPanelTier === 'manager') renderManagerRollupCards(currentMonth);
+  else if(cfPanelTier === 'tl') renderTLRollupCards(currentMonth);
+  else renderManagerCards(currentMonth);
 }
 function toggleCardFieldsPanel(){
   const panel = document.getElementById('card-fields-panel');
@@ -2600,17 +2747,30 @@ function toggleCardFieldsPanel(){
   if(open){ renderCardFieldsPanel(); panel.removeAttribute('hidden'); if(btn) btn.classList.add('active'); }
   else { panel.setAttribute('hidden',''); if(btn) btn.classList.remove('active'); }
 }
-// The extra fields block on a manager card — only fields the viewer turned on AND that have
-// an actual value for this manager (no blank/zero-looking placeholders for untracked data).
-function renderExtraCardFields(m){
-  const fields = allowedCardFieldDefs().filter(f => visibleCardFields.has(f.key)).map(f => {
-    const v = f.get(m);
-    return (v === null || v === undefined) ? null : [f.label, f.fmt(v)];
+// Combines one optional field across however many rows a card represents — a straight sum for
+// totals/counts (Revenue, BDEs, M-bucket counts, ...) or an average for figures that are already
+// a rate/percentage/mean (% Achieved, Attrition %, Avg Revenue / BDE, ...) — see each field's own
+// `agg` in CARD_FIELD_DEFS above. A single-row "group" (one agent) sums/averages to that same one
+// value either way, which is what lets renderExtraCardFields below reuse this for agent cards too.
+function computeAggregateFieldValue(f, rows){
+  const nums = rows.map(r => f.get(r)).filter(v => typeof v === 'number' && !Number.isNaN(v));
+  if(!nums.length) return null;
+  const total = nums.reduce((a,b) => a+b, 0);
+  return f.agg === 'avg' ? total / nums.length : total;
+}
+// The extra fields block on a card — only fields turned on for this tier AND that have an
+// actual value for this row/group (no blank/zero-looking placeholders for untracked data).
+function renderExtraFieldsForTier(tier, rows){
+  const visible = visibleFieldsForTier(tier);
+  const fields = allowedCardFieldDefs().filter(f => visible.has(f.key)).map(f => {
+    const v = computeAggregateFieldValue(f, rows);
+    return (v === null) ? null : [f.label, f.fmt(v)];
   }).filter(Boolean);
   if(!fields.length) return '';
   const cells = fields.map(([k,v]) => `<div class="cell"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
   return `<div class="mgr-stats">${cells}</div>`;
 }
+function renderExtraCardFields(m){ return renderExtraFieldsForTier('agent', [m]); }
 
 function renderSubMetrics(sm){
   if(!sm) return '';
@@ -2673,6 +2833,7 @@ function topDisplayAchievementForMonth(monthKey){
 
 function renderManagerCards(monthKey){
   const d = MONTHS[monthKey]; // kept unfiltered — computeAllScores needs the full-month baseline
+  const kraDef = kraDefForDept(currentDept); // this department's own weight split — see kraDefForDept
   const ranks = computeMonthlyRanks(monthKey);
   // Whole-department high-water mark for the "Behind Top 1" callout below — see
   // topDisplayAchievementForMonth's own comment for why this is deliberately NOT the same
@@ -2695,7 +2856,7 @@ function renderManagerCards(monthKey){
     const initials = m.name.slice(0,2).toUpperCase();
     const color = COLORS[i % COLORS.length];
     const finalColor = weighted >= 80 ? 'var(--good)' : weighted >= 60 ? 'var(--warning)' : 'var(--critical)';
-    const kraRows = KRA_DEF.map(k => {
+    const kraRows = kraDef.map(k => {
       let display, cell;
       if(k.manual){
         const val = getManualScore(monthKey, m.name, k.key, m.department);
@@ -2824,23 +2985,30 @@ function renderManagerCards(monthKey){
   document.getElementById('manager-grid').innerHTML = html;
 }
 
-// ---------- MANAGER-LEVEL ROLLUP (rolls the current scope's rows up by managerName) ----------
+// ---------- ROLLUP TIERS (Manager and Team Lead — rolls the current scope's rows up by name) ----------
 // Groups whatever scopedManagersForMonth(monthKey) already returns (so this respects the
-// Team-view filter exactly like the agent-card grid below it) by each row's own managerName,
-// trimmed/case-folded for grouping. Rows with no managerName on file (most departments outside
-// FST/wherever the sheet tracks it yet) land in a single "Unassigned" bucket.
-function groupRowsByManagerName(rows){
+// Team-view filter exactly like the agent-card grid below it) by one row field, trimmed/
+// case-folded for grouping. Rows with nothing on file for that field land in a single
+// "Unassigned" bucket. groupRowsByManagerName/groupRowsByTLName are the two tiers this dashboard
+// actually renders (see renderRollupCards below); both share this one grouping rule so a
+// "Team Lead" and a "Manager" can never accidentally group differently.
+function groupRowsByField(rows, fieldName){
   const groups = new Map(); // lower-cased key -> { label, rows: [] }
   rows.forEach(m => {
-    const raw = (m.managerName || '').trim();
+    const raw = (m[fieldName] || '').trim();
     const key = raw ? raw.toLowerCase() : '__unassigned__';
     if(!groups.has(key)) groups.set(key, { label: raw || 'Unassigned', rows: [] });
     groups.get(key).rows.push(m);
   });
   return groups;
 }
-function renderManagerRollupCards(monthKey){
-  const el = document.getElementById('manager-rollup-grid');
+function groupRowsByManagerName(rows){ return groupRowsByField(rows, 'managerName'); }
+function groupRowsByTLName(rows){ return groupRowsByField(rows, 'tlName'); }
+// Shared renderer for both rollup tiers — groupFn picks managerName vs tlName grouping, elId
+// picks which grid to render into. Kept as one function (rather than two near-duplicates) so
+// the two tiers can never quietly drift apart in behavior.
+function renderRollupCards(monthKey, groupFn, elId, tier){
+  const el = document.getElementById(elId);
   if(!el) return;
   const rows = scopedManagersForMonth(monthKey);
   if(!rows.length){
@@ -2853,9 +3021,9 @@ function renderManagerRollupCards(monthKey){
     el.innerHTML = `<div style="color:var(--text-muted);font-size:12.5px;padding:8px 0;">${msg}</div>`;
     return;
   }
-  const groups = groupRowsByManagerName(rows);
-  // Alphabetical by manager name, with the "Unassigned" bucket always pushed to the end
-  // regardless of where it'd otherwise alphabetize to.
+  const groups = groupFn(rows);
+  // Alphabetical by name, with the "Unassigned" bucket always pushed to the end regardless of
+  // where it'd otherwise alphabetize to.
   const orderedKeys = [...groups.keys()].sort((a,b) => groups.get(a).label.localeCompare(groups.get(b).label));
   orderedKeys.sort((a,b) => (a === '__unassigned__' ? 1 : 0) - (b === '__unassigned__' ? 1 : 0));
   const html = orderedKeys.map((key, i) => {
@@ -2911,10 +3079,13 @@ function renderManagerRollupCards(monthKey){
         <div class="cell"><div class="k">Total Sales</div><div class="v">${fmtNum(totals.noOfSale)}</div></div>
       </div>
       ${bucketHtml}
+      ${renderExtraFieldsForTier(tier, g.rows)}
     </div>`;
   }).join('');
   el.innerHTML = html;
 }
+function renderManagerRollupCards(monthKey){ renderRollupCards(monthKey, groupRowsByManagerName, 'manager-rollup-grid', 'manager'); }
+function renderTLRollupCards(monthKey){ renderRollupCards(monthKey, groupRowsByTLName, 'tl-rollup-grid', 'tl'); }
 
 // ---------- TOPPERS OF MUNIM (cross-department top-3 photo gallery, one section for everyone) ----------
 // Always visible regardless of which department tab is open (including Quality — see its own
@@ -3239,7 +3410,7 @@ function renderMonthView(monthKey){
         emptyEl.innerHTML = `Still loading <b>${deptName(currentDept)}</b>'s data from Google Sheets — if this doesn't update in a moment, click "🔄 Refresh from Sheet".`;
       }
     }
-    ['kpi-row','chart-target-achieved','chart-pct-achv','manager-rollup-grid','manager-grid'].forEach(id => { const el = document.getElementById(id); if(el) el.innerHTML = ''; });
+    ['kpi-row','chart-target-achieved','chart-pct-achv','manager-rollup-grid','tl-rollup-grid','manager-grid'].forEach(id => { const el = document.getElementById(id); if(el) el.innerHTML = ''; });
     return;
   }
   if(emptyEl) emptyEl.hidden = true;
@@ -3247,6 +3418,7 @@ function renderMonthView(monthKey){
   renderTargetAchievedChart(monthKey);
   renderPctAchvChart(monthKey);
   renderManagerRollupCards(monthKey);
+  renderTLRollupCards(monthKey);
   renderManagerCards(monthKey);
 }
 
@@ -3342,6 +3514,126 @@ function aggregateGroup(monthKey, list){
 function onCompareLevelChange(value){
   compareLevel = value;
   renderCompareView();
+}
+
+// ---------- COMPANY VIEW (cumulative Target/Achieved across departments) ----------
+// True only if AT LEAST ONE row for this department, this month, actually carries a target —
+// the signal that a department tracks Target/Achievement at all (vs. Quality's QA scores, or a
+// department with rows in the shared sheet but nothing filled in for Target yet). Departments
+// without any such row (Quality always; Support too, per how Support's own rows are tracked)
+// simply won't auto-check themselves below — an admin/viewer can still tick them on by hand if
+// that ever changes, this never hides a department from the checklist itself.
+function deptHasTargetData(deptId, monthKey){
+  const rows = (SHARED_SALES_DATA[monthKey] && SHARED_SALES_DATA[monthKey].byDept[deptId]) || [];
+  return rows.some(r => (r.target || 0) > 0);
+}
+function companyViewMonthOptions(){
+  return Object.keys(SHARED_SALES_DATA).sort((a,b) => SHARED_SALES_DATA[a].sortKey - SHARED_SALES_DATA[b].sortKey);
+}
+// Session-only state for this tab — which month it's showing, and which of the viewer's allowed
+// departments are checked into the combined total. companyViewDeptChecks is deliberately reset
+// to null (meaning "re-derive the auto-detected set") whenever the month changes, rather than
+// persisted, since a Target/Achievement-tracking department can differ month to month and this
+// tab should always start from what's actually true for the month currently on screen.
+let companyViewMonth = null;
+let companyViewDeptChecks = null;
+function onCompanyViewMonthChange(monthKey){
+  companyViewMonth = monthKey;
+  companyViewDeptChecks = null;
+  renderCompanyView();
+}
+function onCompanyViewDeptToggle(deptId, checked){
+  if(!companyViewDeptChecks) companyViewDeptChecks = new Set();
+  if(checked) companyViewDeptChecks.add(deptId); else companyViewDeptChecks.delete(deptId);
+  renderCompanyViewBody();
+}
+function renderCompanyViewDeptChecklist(){
+  const el = document.getElementById('company-view-depts');
+  if(!el) return;
+  el.innerHTML = allowedDepartments().map(d => {
+    const hasData = deptHasTargetData(d.id, companyViewMonth);
+    return `<label class="dept-check">
+      <input type="checkbox" ${companyViewDeptChecks.has(d.id)?'checked':''} onchange="onCompanyViewDeptToggle('${d.id}', this.checked)">
+      ${escapeHtml(d.name)}${hasData ? '' : ' <span style="color:var(--text-muted);font-size:10.5px;">(no Target/Achievement data this month)</span>'}
+    </label>`;
+  }).join('');
+}
+function renderCompanyViewBody(){
+  const el = document.getElementById('company-view-body');
+  if(!el) return;
+  const monthKey = companyViewMonth;
+  const deptIds = [...companyViewDeptChecks].filter(id => allowedDepartments().some(d => d.id === id));
+  if(!deptIds.length){
+    el.innerHTML = '<div style="color:var(--text-muted);font-size:12.5px;padding:8px 0;">Check at least one department above to see combined figures.</div>';
+    return;
+  }
+  const perDept = deptIds.map(deptId => {
+    const rows = ((SHARED_SALES_DATA[monthKey] && SHARED_SALES_DATA[monthKey].byDept[deptId]) || []).filter(hasRevenueData);
+    const totals = rows.reduce((acc, m) => {
+      acc.target += m.target || 0;
+      acc.achieved += displayAchievementForDept(m, deptId);
+      acc.bdes += m.bdes || 0;
+      acc.noOfSale += m.noOfSale || 0;
+      return acc;
+    }, { target:0, achieved:0, bdes:0, noOfSale:0 });
+    return { deptId, name: deptName(deptId), totals };
+  });
+  const grand = perDept.reduce((acc, d) => ({
+    target: acc.target + d.totals.target, achieved: acc.achieved + d.totals.achieved,
+    bdes: acc.bdes + d.totals.bdes, noOfSale: acc.noOfSale + d.totals.noOfSale
+  }), { target:0, achieved:0, bdes:0, noOfSale:0 });
+  const grandPct = grand.target > 0 ? (grand.achieved / grand.target * 100) : null;
+  const color = statusColor(grandPct === null ? 0 : grandPct);
+  const kpiHtml = `<div class="kpi-row">
+    <div class="kpi"><div class="label">Combined Target</div><div class="value">${fmtINR(grand.target)}</div></div>
+    <div class="kpi"><div class="label">Combined Achieved</div><div class="value">${fmtINR(grand.achieved)}</div></div>
+    <div class="kpi"><div class="label">% Achievement</div><div class="value" style="color:${color}">${grandPct===null?'—':grandPct.toFixed(1)+'%'}</div></div>
+    <div class="kpi"><div class="label">Total BDEs</div><div class="value">${grand.bdes}</div></div>
+    <div class="kpi"><div class="label">Total Sales</div><div class="value">${fmtNum(grand.noOfSale)}</div></div>
+  </div>`;
+  const rowsHtml = perDept.map(d => {
+    const pct = d.totals.target > 0 ? (d.totals.achieved / d.totals.target * 100) : null;
+    const c = statusColor(pct === null ? 0 : pct);
+    return `<tr>
+      <td class="name-cell">${escapeHtml(d.name)}</td>
+      <td class="num">${fmtINR(d.totals.target)}</td>
+      <td class="num">${fmtINR(d.totals.achieved)}</td>
+      <td class="num" style="color:${c}">${pct===null?'—':pct.toFixed(1)+'%'}</td>
+      <td class="num">${d.totals.bdes}</td>
+      <td class="num">${fmtNum(d.totals.noOfSale)}</td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = `${kpiHtml}
+    <div class="card" style="margin-top:16px;">
+      <h3>By department</h3>
+      <div style="overflow-x:auto;">
+        <table class="kra-table">
+          <thead><tr><th>Department</th><th class="num">Target</th><th class="num">Achieved</th><th class="num">% Achievement</th><th class="num">BDEs</th><th class="num">Sales</th></tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+function renderCompanyView(){
+  const monthKeys = companyViewMonthOptions();
+  const monthSel = document.getElementById('company-view-month');
+  if(!monthKeys.length){
+    if(monthSel) monthSel.innerHTML = '';
+    document.getElementById('company-view-depts').innerHTML = '';
+    document.getElementById('company-view-body').innerHTML = '<div style="color:var(--text-muted);font-size:12.5px;padding:8px 0;">No Sales Data Sheet connected yet.</div>';
+    return;
+  }
+  if(!companyViewMonth || !monthKeys.includes(companyViewMonth)){
+    // Default to whichever month the rest of the dashboard is on, if that month has any data at
+    // all here; otherwise fall back to the most recent month this shared sheet actually has.
+    companyViewMonth = monthKeys.includes(currentMonth) ? currentMonth : monthKeys[monthKeys.length - 1];
+  }
+  if(monthSel) monthSel.innerHTML = monthKeys.map(mk => `<option value="${mk}" ${mk===companyViewMonth?'selected':''}>${SHARED_SALES_DATA[mk].label}</option>`).join('');
+  if(!companyViewDeptChecks){
+    companyViewDeptChecks = new Set(allowedDepartments().filter(d => deptHasTargetData(d.id, companyViewMonth)).map(d => d.id));
+  }
+  renderCompanyViewDeptChecklist();
+  renderCompanyViewBody();
 }
 
 // Every chart/table here is driven by the same From→To range selected above — a new month
@@ -3457,10 +3749,15 @@ function renderAvgScoreSection(tabs){
 }
 
 function renderKraReference(){
-  const html = KRA_DEF.map(k => `
+  const def = kraDefForDept(currentDept);
+  // Normalize bar widths against THIS department's own highest weight, not a hardcoded 60 —
+  // a department that's been re-weighted so no single KRA reaches 60% would otherwise never
+  // show a full-width bar (or, the other way, a KRA weighted above 60% would overflow it).
+  const maxWeight = Math.max(...def.map(k => k.weight), 1);
+  const html = def.map(k => `
     <div class="kra-ref-row ${k.manual?'manual':''}">
       <div class="name">${k.label}${k.manual?' <span class="pending-tag">MANUAL</span>':''}</div>
-      <div class="track"><div class="fill" style="width:${k.weight/60*100}%"></div></div>
+      <div class="track"><div class="fill" style="width:${k.weight/maxWeight*100}%"></div></div>
       <div class="wt">${k.weight}%</div>
     </div>`).join('');
   document.getElementById('kra-ref-list').innerHTML = html;
@@ -3534,6 +3831,7 @@ async function renderAccessView(){
   hideAccessError();
   renderGrantDeptCheckboxes([]);
   renderTopperPhotosAdmin();
+  renderTierFieldsAdminGrid();
   const costCb = document.getElementById('grant-cost-access');
   if(costCb) costCb.checked = false;
   document.getElementById('access-list').innerHTML = '<div style="color:var(--text-muted);font-size:12.5px;">Loading…</div>';
@@ -3580,6 +3878,61 @@ async function onRevokeAccess(key, email){
   }
 }
 
+// ---------- DEFAULT FIELDS PER ROLE admin (lives on the "⚙️ Manage Access" tab) ----------
+// Which tier's checkboxes this admin card is currently showing — session-only, independent of
+// the viewer-facing cfPanelTier above (an admin editing the dashboard-wide default shouldn't
+// silently jump their own "⚙ Customize fields" panel to a different tier, or vice versa).
+let tierFieldsAdminTab = 'agent';
+function setTierFieldsAdminTab(tier){ tierFieldsAdminTab = tier; renderTierFieldsAdminGrid(); }
+function renderTierFieldsAdminGrid(){
+  const tabsEl = document.getElementById('tier-fields-tabs');
+  if(tabsEl){
+    tabsEl.innerHTML = Object.keys(CF_TIER_LABELS).map(t =>
+      `<button class="cf-tab ${tierFieldsAdminTab === t ? 'active' : ''}" onclick="setTierFieldsAdminTab('${t}')">${CF_TIER_LABELS[t]}</button>`).join('');
+  }
+  const labelEl = document.getElementById('tier-fields-tier-label');
+  if(labelEl) labelEl.innerHTML = `Default fields shown on: <b>${CF_TIER_LABELS[tierFieldsAdminTab]}</b>`;
+  const el = document.getElementById('tier-fields-admin-grid');
+  if(!el) return;
+  const current = new Set(DEFAULT_TIER_FIELDS[tierFieldsAdminTab] || []);
+  el.innerHTML = CARD_FIELD_DEFS.map(f => `
+    <label class="cf-check">
+      <input type="checkbox" ${current.has(f.key)?'checked':''} data-tier-field-key="${f.key}">
+      ${f.label}
+    </label>`).join('');
+}
+async function onSaveTierFieldsDefault(){
+  hideAccessError();
+  const tier = tierFieldsAdminTab;
+  const checked = [...document.querySelectorAll('#tier-fields-admin-grid input[data-tier-field-key]:checked')].map(i => i.dataset.tierFieldKey);
+  const btn = document.getElementById('tier-fields-save');
+  btn.disabled = true;
+  try{
+    await writeConfigProps({ [tierFieldsDefaultKey(tier)]: checked.join(',') });
+    DEFAULT_TIER_FIELDS[tier] = checked;
+    const statusEl = document.getElementById('tier-fields-status');
+    if(statusEl) statusEl.textContent = `Saved — new dashboard-wide default for ${CF_TIER_LABELS[tier]}. Anyone without their own saved per-department view will pick this up next time they sign in or switch departments; it won't change what's already on someone's screen right now.`;
+  } catch(err){
+    showAccessError(describeAccessError(err, 'save this default'));
+  } finally {
+    btn.disabled = false;
+  }
+}
+async function onResetTierFieldsDefault(){
+  const tier = tierFieldsAdminTab;
+  if(!confirm(`Clear the dashboard-wide default fields for ${CF_TIER_LABELS[tier]}? This only clears the admin-set default — it never touches anyone's own saved per-department view.`)) return;
+  hideAccessError();
+  try{
+    await writeConfigProps({ [tierFieldsDefaultKey(tier)]: null });
+    DEFAULT_TIER_FIELDS[tier] = [];
+    renderTierFieldsAdminGrid();
+    const statusEl = document.getElementById('tier-fields-status');
+    if(statusEl) statusEl.textContent = `Cleared — ${CF_TIER_LABELS[tier]} now default to no extra fields dashboard-wide.`;
+  } catch(err){
+    showAccessError(describeAccessError(err, 'clear this default'));
+  }
+}
+
 // ---------- MANAGE DEPARTMENTS admin view ----------
 function showDeptsError(msg){
   const el = document.getElementById('depts-error');
@@ -3601,6 +3954,72 @@ function fillDeptForm(deptId){
   if(sel) sel.value = deptId;
   const cfg = DEPT_SHEETS[deptId] || {};
   document.getElementById('dept-form-master').value = cfg.masterSheetId || '';
+}
+
+// ---------- KRA WEIGHTS admin (lives on the "⚙️ Manage Departments" tab) ----------
+function renderKraWeightsDeptSelect(){
+  const sel = document.getElementById('kra-weights-dept-select');
+  if(!sel) return;
+  sel.innerHTML = DEPARTMENTS.map(d => `<option value="${d.id}">${escapeHtml(d.name)}</option>`).join('');
+}
+function updateKraWeightsTotal(){
+  const inputs = document.querySelectorAll('#kra-weights-inputs input[data-kra-key]');
+  let total = 0;
+  inputs.forEach(i => { total += Number(i.value) || 0; });
+  const el = document.getElementById('kra-weights-total');
+  if(!el) return;
+  el.innerHTML = total === 100
+    ? `Total: <b style="color:var(--good)">${total}%</b>`
+    : `Total: <b style="color:var(--critical)">${total}%</b> — must equal 100% to save`;
+}
+function fillKraWeightsForm(deptId){
+  const sel = document.getElementById('kra-weights-dept-select');
+  if(sel) sel.value = deptId;
+  const el = document.getElementById('kra-weights-inputs');
+  if(!el) return;
+  const isCustom = !!DEPT_KRA_WEIGHTS[deptId];
+  el.innerHTML = kraDefForDept(deptId).map(k => `
+    <label>${escapeHtml(k.label)}${k.manual ? ' <span class="pending-tag">MANUAL</span>' : ''}
+      <input type="number" min="0" max="100" step="1" data-kra-key="${k.key}" value="${k.weight}" oninput="updateKraWeightsTotal()">
+    </label>`).join('');
+  updateKraWeightsTotal();
+  const statusEl = document.getElementById('kra-weights-status');
+  if(statusEl) statusEl.textContent = isCustom ? `${deptName(deptId)} is using a custom split.` : `${deptName(deptId)} is using the standard split.`;
+}
+async function onSaveKraWeights(){
+  hideDeptsError();
+  const deptId = document.getElementById('kra-weights-dept-select').value;
+  const inputs = document.querySelectorAll('#kra-weights-inputs input[data-kra-key]');
+  const weights = {};
+  let total = 0;
+  inputs.forEach(i => { const v = Number(i.value) || 0; weights[i.dataset.kraKey] = v; total += v; });
+  if(total !== 100){ showDeptsError(`Weights for ${deptName(deptId)} add up to ${total}%, not 100% — adjust them before saving.`); return; }
+  const btn = document.getElementById('kra-weights-save');
+  btn.disabled = true;
+  try{
+    await writeConfigProps({ [kraWeightsKey(deptId)]: JSON.stringify(weights) });
+    DEPT_KRA_WEIGHTS[deptId] = weights;
+    const statusEl = document.getElementById('kra-weights-status');
+    if(statusEl) statusEl.textContent = `Saved — ${deptName(deptId)} now uses this custom split.`;
+    if(deptId === currentDept){ renderKraReference(); if(currentView === 'month') renderMonthView(currentMonth); }
+  } catch(err){
+    showDeptsError(describeAccessError(err, 'save these weights'));
+  } finally {
+    btn.disabled = false;
+  }
+}
+async function onResetKraWeights(){
+  const deptId = document.getElementById('kra-weights-dept-select').value;
+  if(!confirm(`Reset ${deptName(deptId)} to the standard 60/15/10/5/5/5 split?`)) return;
+  hideDeptsError();
+  try{
+    await writeConfigProps({ [kraWeightsKey(deptId)]: null });
+    delete DEPT_KRA_WEIGHTS[deptId];
+    fillKraWeightsForm(deptId);
+    if(deptId === currentDept){ renderKraReference(); if(currentView === 'month') renderMonthView(currentMonth); }
+  } catch(err){
+    showDeptsError(describeAccessError(err, 'reset these weights'));
+  }
 }
 function renderDeptsList(){
   const el = document.getElementById('depts-list');
@@ -3801,6 +4220,8 @@ function renderDeptsAdminView(){
   if(costErrEl) costErrEl.style.display = 'none';
   renderDeptFormSelect();
   fillDeptForm(document.getElementById('dept-form-select').value || DEPARTMENTS[0].id);
+  renderKraWeightsDeptSelect();
+  fillKraWeightsForm(document.getElementById('kra-weights-dept-select').value || DEPARTMENTS[0].id);
   renderDeptsList();
   renderSharedSheetStatus();
   renderQualitySheetStatus();
@@ -3885,7 +4306,7 @@ async function renderEditLogView(){
 }
 
 // ---------- NAV ----------
-const ALL_VIEW_SECTION_IDS = ['month-view','compare-view','access-view','depts-view','presence-view','editlog-view'];
+const ALL_VIEW_SECTION_IDS = ['month-view','compare-view','company-view','access-view','depts-view','presence-view','editlog-view'];
 function hideAllViewSections(){
   ALL_VIEW_SECTION_IDS.forEach(id => { const el = document.getElementById(id); if(el) el.hidden = true; });
 }
@@ -3899,6 +4320,10 @@ document.getElementById('month-tabs').addEventListener('click', e => {
     currentView = 'compare';
     document.getElementById('compare-view').hidden = false;
     renderCompareView();
+  } else if(btn.dataset.view === 'company'){
+    currentView = 'company';
+    document.getElementById('company-view').hidden = false;
+    renderCompanyView();
   } else if(btn.dataset.view === 'access'){
     currentView = 'access';
     document.getElementById('access-view').hidden = false;
@@ -3934,6 +4359,7 @@ function toggleTheme(){
   document.getElementById('theme-toggle').textContent = isDark ? '🌙 Dark mode' : '☀️ Light mode';
   if(currentView === 'month') renderMonthView(currentMonth);
   else if(currentView === 'compare') renderCompareView();
+  else if(currentView === 'company') renderCompanyView();
   else if(currentView === 'access') renderAccessView();
   else if(currentView === 'depts') renderDeptsAdminView();
   else if(currentView === 'presence') renderPresenceView();
@@ -3948,6 +4374,7 @@ function renderMonthTabs(){
     `<button data-month="${t.key}" class="${currentView==='month' && currentMonth===t.key ? 'active':''}">${t.label}</button>`
   ).join('')
     + (MONTH_TABS.length > 1 && currentDept !== 'QUALITY' ? `<button data-view="compare" class="${currentView==='compare'?'active':''}">Comparison</button>` : '')
+    + (allowedDepartments().length > 1 ? `<button data-view="company" class="${currentView==='company'?'active':''}">🏢 Company View</button>` : '')
     + (isAdmin() ? `<button data-view="access" class="${currentView==='access'?'active':''}">⚙️ Manage Access</button>` : '')
     + (isAdmin() ? `<button data-view="depts" class="${currentView==='depts'?'active':''}">⚙️ Manage Departments</button>` : '')
     + (isAdmin() ? `<button data-view="presence" class="${currentView==='presence'?'active':''}">🟢 Who's Online</button>` : '')
@@ -3993,7 +4420,9 @@ function saveDefaultView(){
   store.depts[currentDept] = {
     teamFilterManager, teamFilterTL, teamFilterAgent, compareLevel,
     qualityFilter: currentDept === 'QUALITY' ? qualityFilter : undefined,
-    visibleCardFields: [...visibleCardFields]
+    visibleFieldsAgent: [...visibleFieldsAgent],
+    visibleFieldsManager: [...visibleFieldsManager],
+    visibleFieldsTL: [...visibleFieldsTL]
   };
   store.startDept = currentDept;
   if(saveDefaultViewStore(store)){
@@ -4025,7 +4454,12 @@ function clearDefaultView(){
 // default, never whatever was showing in the previously-selected department.
 function applyDeptDefaultView(deptId){
   teamFilterManager = ''; teamFilterTL = ''; teamFilterAgent = ''; compareLevel = 'agent';
-  visibleCardFields = new Set();
+  // Start from the admin's dashboard-wide per-tier defaults (see DEFAULT_TIER_FIELDS /
+  // "Default fields per role" under Manage Access) — then let this viewer's own saved
+  // per-department default (below) override it, exactly like every other saved-view setting.
+  visibleFieldsAgent = new Set(DEFAULT_TIER_FIELDS.agent || []);
+  visibleFieldsManager = new Set(DEFAULT_TIER_FIELDS.manager || []);
+  visibleFieldsTL = new Set(DEFAULT_TIER_FIELDS.tl || []);
   const prefs = currentUser ? loadDefaultViewForDept(deptId) : null;
   if(prefs){
     teamFilterManager = prefs.teamFilterManager || '';
@@ -4033,7 +4467,10 @@ function applyDeptDefaultView(deptId){
     teamFilterAgent = prefs.teamFilterAgent || '';
     compareLevel = prefs.compareLevel || 'agent';
     if(prefs.qualityFilter) qualityFilter = Object.assign({ dept:'', manager:'', tl:'', agent:'' }, prefs.qualityFilter);
-    if(Array.isArray(prefs.visibleCardFields)) visibleCardFields = new Set(prefs.visibleCardFields);
+    if(Array.isArray(prefs.visibleFieldsAgent)) visibleFieldsAgent = new Set(prefs.visibleFieldsAgent);
+    else if(Array.isArray(prefs.visibleCardFields)) visibleFieldsAgent = new Set(prefs.visibleCardFields); // migrates a pre-tier saved default
+    if(Array.isArray(prefs.visibleFieldsManager)) visibleFieldsManager = new Set(prefs.visibleFieldsManager);
+    if(Array.isArray(prefs.visibleFieldsTL)) visibleFieldsTL = new Set(prefs.visibleFieldsTL);
   }
 }
 
