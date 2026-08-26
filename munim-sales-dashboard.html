@@ -575,7 +575,12 @@
 
     <div class="card compare-card">
       <h3>🏆 Topper photos</h3>
-      <div class="card-sub">One photo for each department's Top/2nd/3rd performer, shown in the "Toppers of Munim" section everyone sees. Paste a Google Drive/Photos share link (or any public image link) — there's no device-upload button here, since that needs a Google permission that broke sign-in for everyone the one time it was turned on; ask Amit before changing that.</div>
+      <div class="card-sub">One photo per department per rank, for the month you pick below — since who's actually on top changes every month, each month keeps its own set of photos rather than sharing one fixed photo all year. Shown in the "Toppers of Munim" section everyone sees, for that same month. Paste a Google Drive/Photos share link (or any public image link) — there's no device-upload button here, since that needs a Google permission that broke sign-in for everyone the one time it was turned on; ask Amit before changing that.</div>
+      <div class="range-picker">
+        <label>Month
+          <select id="topper-photos-admin-month" onchange="onTopperPhotosAdminMonthChange(this.value)"></select>
+        </label>
+      </div>
       <div id="topper-photos-admin"></div>
     </div>
 
@@ -1166,7 +1171,7 @@ function decodeDeptConfig(raw){
 // gallery — see the TOP PERFORMER PHOTOS section below. Deliberately a distinct prefix (checked
 // first, see applyDeptSheetConfigFromProps) even though 'dashDeptPhoto_' textually starts with
 // 'dashDept_' too — the two must never be confused for one another.
-function deptPhotoKey(deptId, rank){ return 'dashDeptPhoto_' + deptId + '_' + rank; }
+function deptPhotoKey(deptId, monthKey, rank){ return 'dashDeptPhoto_' + deptId + '_' + monthKey + '_' + rank; }
 // One appProperties key per card tier for the admin's dashboard-wide default field selection —
 // see "🧩 Default fields per role" under Manage Access and DEFAULT_TIER_FIELDS below.
 function tierFieldsDefaultKey(tier){ return 'dashFieldsDefault_' + tier; }
@@ -1192,17 +1197,30 @@ function applyDeptSheetConfigFromProps(props){
   const costId = props['dashCostSheet'] || '';
   if(costId !== COST_SHEET_ID) COST_SHEET_TAB = null;
   COST_SHEET_ID = costId;
-  // Top Performers photo gallery — dashDeptPhoto_<deptId>_<rank> -> resolved image URL. deptId
-  // can itself contain underscores (e.g. IST_ACCOUNTING), so the greedy (.+) below still lands
-  // correctly on the trailing _<rank> thanks to the fixed {1,2,3} alternation + end anchor.
-  const photos = {};
+  // Top Performers photo gallery. Current (per-month) shape is
+  // dashDeptPhoto_<deptId>_<monthKey>_<rank> -> resolved image URL; monthKey is always "YYYY-MM"
+  // (4 digits, a dash, 2 digits — see the monthKey builders elsewhere in this file), which is
+  // what lets the regex below tell it apart from the OLD dashboard-wide shape,
+  // dashDeptPhoto_<deptId>_<rank> (no month segment at all), even though deptId can itself
+  // contain underscores (e.g. IST_ACCOUNTING) — the per-month regex is checked first and only
+  // falls through to the legacy one when the key doesn't have a month segment.
+  const photosByMonth = {};
+  const photosLegacy = {};
   Object.keys(props).forEach(k => {
-    const m = /^dashDeptPhoto_(.+)_([123])$/.exec(k);
-    if(!m) return;
-    if(!photos[m[1]]) photos[m[1]] = {};
-    photos[m[1]][m[2]] = props[k];
+    if(!k.startsWith('dashDeptPhoto_')) return;
+    let m = /^dashDeptPhoto_(.+)_(\d{4}-\d{2})_([123])$/.exec(k);
+    if(m){
+      const [, deptId, monthKey, rank] = m;
+      if(!photosByMonth[deptId]) photosByMonth[deptId] = {};
+      if(!photosByMonth[deptId][monthKey]) photosByMonth[deptId][monthKey] = {};
+      photosByMonth[deptId][monthKey][rank] = props[k];
+      return;
+    }
+    m = /^dashDeptPhoto_(.+)_([123])$/.exec(k);
+    if(m) (photosLegacy[m[1]] || (photosLegacy[m[1]] = {}))[m[2]] = props[k];
   });
-  DEPT_PHOTOS = photos;
+  DEPT_PHOTOS = photosLegacy;
+  DEPT_PHOTOS_BY_MONTH = photosByMonth;
   // Per-department KRA weight overrides — dashKraWeights_<deptId> -> JSON {key: weight, ...}.
   // Only departments an admin has actually saved custom weights for appear here; see
   // kraDefForDept, which falls back to DEFAULT_KRA_DEF's 60/15/10/5/5/5 for everyone else.
@@ -1248,10 +1266,11 @@ function resolveDeptPhotoUrl(raw){
   if(!m) m = /[?&]id=([a-zA-Z0-9_-]+)/.exec(s);
   return m ? driveImageUrl(m[1]) : s;
 }
-async function saveDeptPhoto(deptId, rank, url){
-  await writeConfigProps({ [deptPhotoKey(deptId, rank)]: url || null });
-  if(!DEPT_PHOTOS[deptId]) DEPT_PHOTOS[deptId] = {};
-  if(url) DEPT_PHOTOS[deptId][rank] = url; else delete DEPT_PHOTOS[deptId][rank];
+async function saveDeptPhoto(deptId, monthKey, rank, url){
+  await writeConfigProps({ [deptPhotoKey(deptId, monthKey, rank)]: url || null });
+  if(!DEPT_PHOTOS_BY_MONTH[deptId]) DEPT_PHOTOS_BY_MONTH[deptId] = {};
+  if(!DEPT_PHOTOS_BY_MONTH[deptId][monthKey]) DEPT_PHOTOS_BY_MONTH[deptId][monthKey] = {};
+  if(url) DEPT_PHOTOS_BY_MONTH[deptId][monthKey][rank] = url; else delete DEPT_PHOTOS_BY_MONTH[deptId][monthKey][rank];
 }
 // Multipart Drive upload (metadata JSON part + base64 media part) — apiFetch isn't used for the
 // upload itself since it always sends JSON, but the follow-up permissions.create call below does
@@ -1304,8 +1323,8 @@ async function onTopPhotoFileChosen(rank, inputEl){
   if(statusEl) statusEl.textContent = 'Uploading…';
   try{
     const url = await uploadDriveImageFile(file, munimToppersDept, rank);
-    await saveDeptPhoto(munimToppersDept, rank, url);
-    renderMunimToppersPanel(currentMonth);
+    await saveDeptPhoto(munimToppersDept, munimToppersMonth, rank, url);
+    renderMunimToppersPanel();
   } catch(err){
     if(statusEl) statusEl.textContent = describeAccessError(err, 'upload this photo');
   } finally {
@@ -1490,10 +1509,23 @@ const DEFAULT_DEPT_SHEETS = {
 let DEPT_SHEETS = JSON.parse(JSON.stringify(DEFAULT_DEPT_SHEETS)); // replaced by applyDeptSheetConfigFromProps() at sign-in
 let currentDept = 'FST';
 let userAllowedDepts = null; // null = admin (sees every department); else a Set of allowed ids
-// Top Performers photo gallery — deptId -> {'1': url, '2': url, '3': url}. Same appProperties
-// store as DEPT_SHEETS above (see deptPhotoKey/applyDeptSheetConfigFromProps); replaced wholesale
-// at sign-in, then patched in place by saveDeptPhoto() after an admin uploads/pastes a new photo.
+// Top Performers photo gallery. Since who's actually on top changes every month, photos are
+// keyed by month too — deptId -> monthKey -> {'1': url, '2': url, '3': url} — in DEPT_PHOTOS_BY_MONTH.
+// DEPT_PHOTOS itself is now only the OLD dashboard-wide (no-month) shape, kept purely as a
+// fallback for whatever an admin already saved before this per-month split existed — nothing
+// new writes to it any more (see saveDeptPhoto/getTopperPhoto below). Same appProperties store as
+// DEPT_SHEETS above (see deptPhotoKey/applyDeptSheetConfigFromProps); replaced wholesale at
+// sign-in, then patched in place by saveDeptPhoto() after an admin pastes a new photo link.
 let DEPT_PHOTOS = {};
+let DEPT_PHOTOS_BY_MONTH = {};
+// Resolves the photo actually shown for deptId/rank: this month's own photo if an admin has set
+// one, otherwise whatever dashboard-wide (pre-month) photo was saved before, otherwise none.
+function getTopperPhoto(deptId, monthKey, rank){
+  const byMonth = DEPT_PHOTOS_BY_MONTH[deptId] && DEPT_PHOTOS_BY_MONTH[deptId][monthKey];
+  if(byMonth && byMonth[rank]) return byMonth[rank];
+  const legacy = DEPT_PHOTOS[deptId];
+  return (legacy && legacy[rank]) || '';
+}
 
 // ---------- TEAM HIERARCHY (Manager -> Team Lead -> Agent) ----------
 // Dashboard-wide scope filter — applies to both the month view (which cards/KPIs/charts show)
@@ -3009,7 +3041,10 @@ function groupRowsByField(rows, fieldName){
   return groups;
 }
 function groupRowsByManagerName(rows){ return groupRowsByField(rows, 'managerName'); }
-function groupRowsByTLName(rows){ return groupRowsByField(rows, 'tlName'); }
+// Unlike the Manager tier above, an agent with nothing on file for Team Lead is left OUT of the
+// Team Lead rollup entirely, rather than lumped into an "Unassigned" card — per Amit's explicit
+// call: don't show a Team Lead figure for anyone the sheet hasn't actually tagged with one.
+function groupRowsByTLName(rows){ return groupRowsByField(rows.filter(m => (m.tlName || '').trim()), 'tlName'); }
 // Shared renderer for both rollup tiers — groupFn picks managerName vs tlName grouping, elId
 // picks which grid to render into. Kept as one function (rather than two near-duplicates) so
 // the two tiers can never quietly drift apart in behavior.
@@ -3028,6 +3063,13 @@ function renderRollupCards(monthKey, groupFn, elId, tier){
     return;
   }
   const groups = groupFn(rows);
+  if(!groups.size){
+    // Only reachable for the Team Lead tier (groupRowsByTLName filters down to nothing when not
+    // one in-scope agent has a Team Lead on file this month) — Manager grouping always has at
+    // least an "Unassigned" bucket to fall back to, so this branch is TL-specific in practice.
+    el.innerHTML = `<div style="color:var(--text-muted);font-size:12.5px;padding:8px 0;">No agent in scope has a Team Lead on file for this month yet.</div>`;
+    return;
+  }
   // Alphabetical by name, with the "Unassigned" bucket always pushed to the end regardless of
   // where it'd otherwise alphabetize to.
   const orderedKeys = [...groups.keys()].sort((a,b) => groups.get(a).label.localeCompare(groups.get(b).label));
@@ -3096,38 +3138,68 @@ function renderTLRollupCards(monthKey){ renderRollupCards(monthKey, groupRowsByT
 // ---------- TOPPERS OF MUNIM (cross-department top-3 photo gallery, one section for everyone) ----------
 // Always visible regardless of which department tab is open (including Quality — see its own
 // #munim-toppers-panel placement in the HTML, outside both #sales-view-inner and
-// #quality-view-inner). Carries its own department picker (munimToppersDept) that is completely
-// independent of the header's #dept-select/currentDept, so any signed-in viewer can browse any
-// department they're allowed to see without switching their whole dashboard view. Ranking reuses
+// #quality-view-inner). Carries its own department AND month picker (munimToppersDept/
+// munimToppersMonth) that are completely independent of the header's #dept-select/currentDept or
+// the main month tabs, so any signed-in viewer can browse any allowed department's toppers for
+// any past month without switching their whole dashboard view. Ranking reuses
 // computeMonthlyRanksForDept — never a second ranking scheme — so the 3 names shown here always
-// match the 🏆/🥈/🥉 ribbon that department's own agent-card grid shows when you actually switch
-// to it. Upload/paste-link controls only render for isAdmin() — the same gate every other
-// dashboard-config control in this file already uses — and always save against whichever
-// department is currently picked in THIS panel's own selector, not currentDept.
+// match the 🏆/🥈/🥉 ribbon that department's own agent-card grid shows for that same month. Since
+// who's on top changes every month, each department's photos are themselves saved per month too
+// (see getTopperPhoto/DEPT_PHOTOS_BY_MONTH) — this panel's month picker is also what the
+// "🏆 Topper photos" admin card (renderTopperPhotosAdmin below) uses to decide which month it's
+// setting photos for. Upload/paste-link controls only render for isAdmin() — the same gate every
+// other dashboard-config control in this file already uses — and always save against whichever
+// department/month is currently picked in THESE panel's own selectors, not currentDept/currentMonth.
 let munimToppersDept = null; // null until first render, then holds this panel's own department choice
+let munimToppersMonth = null; // null until first render, then holds this panel's own month choice
 function munimToppersDeptOptions(){
   // Quality has no Target/Achieved sales data, so "top by % Achievement" doesn't apply there —
   // left out of this picker's own options (its main #dept-select tab is unaffected).
   return allowedDepartments().filter(d => d.id !== 'QUALITY');
 }
+// Every month the shared Sales Data Sheet actually has rows for, oldest first — same source
+// Company View's own month dropdown uses, so both stay in lockstep with whatever's actually in
+// the sheet rather than a hardcoded list.
+function munimToppersMonthOptions(){
+  return Object.keys(SHARED_SALES_DATA).sort((a,b) => SHARED_SALES_DATA[a].sortKey - SHARED_SALES_DATA[b].sortKey);
+}
 function onMunimToppersDeptChange(deptId){
   munimToppersDept = deptId;
-  renderMunimToppersPanel(currentMonth);
+  renderMunimToppersPanel();
 }
-function renderMunimToppersPanel(monthKey){
+function onMunimToppersMonthChange(monthKey){
+  munimToppersMonth = monthKey;
+  renderMunimToppersPanel();
+  if(isAdmin()) renderTopperPhotosAdmin(); // the admin card's own month picker mirrors this one — see renderTopperPhotosAdmin
+}
+// monthKeyHint seeds munimToppersMonth the FIRST time this renders (normally currentMonth, so it
+// starts out matching whatever month you're already looking at) — once the viewer has picked a
+// month here explicitly it stays put across re-renders, exactly like munimToppersDept already does,
+// even if the main month tabs above get switched to something else.
+function renderMunimToppersPanel(monthKeyHint){
   const el = document.getElementById('munim-toppers-panel');
   if(!el) return;
   const options = munimToppersDeptOptions();
   if(!options.length){ el.innerHTML = ''; return; }
   if(!munimToppersDept || !options.some(d => d.id === munimToppersDept)) munimToppersDept = options[0].id;
+  const monthOptions = munimToppersMonthOptions();
+  if(!munimToppersMonth || !monthOptions.includes(munimToppersMonth)){
+    munimToppersMonth = monthOptions.includes(monthKeyHint) ? monthKeyHint : (monthOptions[monthOptions.length - 1] || null);
+  }
+  const monthKey = munimToppersMonth;
   const rows = (monthKey && SHARED_SALES_DATA[monthKey] && SHARED_SALES_DATA[monthKey].byDept[munimToppersDept]) || [];
   const ranks = monthKey ? computeMonthlyRanksForDept(monthKey, munimToppersDept) : new Map();
   const byRank = { 1: null, 2: null, 3: null };
   ranks.forEach((rank, name) => { byRank[rank] = name; });
   const rowsByName = {};
   rows.forEach(m => { rowsByName[m.name] = m; });
-  const photos = DEPT_PHOTOS[munimToppersDept] || {};
+  const monthSelectHtml = monthOptions.length ? `<label>Month
+      <select id="munim-toppers-month-select" onchange="onMunimToppersMonthChange(this.value)">
+        ${monthOptions.map(mk => `<option value="${mk}" ${mk === monthKey ? 'selected' : ''}>${escapeHtml(SHARED_SALES_DATA[mk].label)}</option>`).join('')}
+      </select>
+    </label>` : '';
   const deptSelectHtml = `<div class="range-picker">
+    ${monthSelectHtml}
     <label>Department
       <select id="munim-toppers-dept-select" onchange="onMunimToppersDeptChange(this.value)">
         ${options.map(d => `<option value="${d.id}" ${d.id === munimToppersDept ? 'selected' : ''}>${escapeHtml(d.name)}</option>`).join('')}
@@ -3141,7 +3213,7 @@ function renderMunimToppersPanel(monthKey){
   const slotsHtml = [1,2,3].map(rank => {
     const name = byRank[rank];
     const m = name ? rowsByName[name] : null;
-    const url = photos[rank];
+    const url = getTopperPhoto(munimToppersDept, monthKey, rank);
     const badge = RANK_BADGES[rank];
     const photoHtml = url
       ? `<img class="tp-photo" src="${url}" alt="${m ? escapeHtml(m.name) : ''}">`
@@ -3159,24 +3231,37 @@ function renderMunimToppersPanel(monthKey){
   }).join('');
   el.innerHTML = `
     <h3>🏆 Toppers of Munim</h3>
-    <div class="card-sub">This month's top 3 by % Achievement for whichever department you pick below — independent of the Department tab above, so anyone can check any allowed department's toppers. ${isAdmin() ? 'Set photos from "⚙️ Manage Access" → "Topper photos".' : ''}</div>
+    <div class="card-sub">Top 3 by % Achievement for whichever department and month you pick below — independent of the Department tab above and the main month tabs, so anyone can check any allowed department's toppers for any month on file. ${isAdmin() ? 'Set photos from "⚙️ Manage Access" → "Topper photos".' : ''}</div>
     ${deptSelectHtml}
     <div class="top-performers-grid">${slotsHtml}</div>`;
 }
 
 // ---------- TOPPER PHOTOS admin (lives on the "⚙️ Manage Access" tab) ----------
-// One consolidated place to set every department's 3 topper photos, rather than the inputs
-// living inside the "Toppers of Munim" section itself (which everyone, not just admins, sees) —
-// simpler to find, and grouped with every other admin-only dashboard control.
+// One consolidated place to set every department's 3 topper photos for one month at a time,
+// rather than the inputs living inside the "Toppers of Munim" section itself (which everyone,
+// not just admins, sees) — simpler to find, and grouped with every other admin-only dashboard
+// control. Shares munimToppersMonth with the Toppers of Munim panel itself (see
+// onMunimToppersMonthChange) so picking a month in either place keeps both in sync, but this
+// card also seeds/reads its own <select> since Manage Access and the Toppers panel are never
+// both on screen at once.
 function renderTopperPhotosAdmin(){
   const el = document.getElementById('topper-photos-admin');
   if(!el) return;
+  const monthSel = document.getElementById('topper-photos-admin-month');
+  const monthOptions = munimToppersMonthOptions();
+  if(!monthOptions.length){
+    if(monthSel) monthSel.innerHTML = '';
+    el.innerHTML = '<div class="card-sub" style="margin:0;">Connect the Sales Data Sheet under "⚙️ Manage Departments" first — topper photos are set per month, and no month has any data yet.</div>';
+    return;
+  }
+  if(!munimToppersMonth || !monthOptions.includes(munimToppersMonth)) munimToppersMonth = monthOptions[monthOptions.length - 1];
+  if(monthSel) monthSel.innerHTML = monthOptions.map(mk => `<option value="${mk}" ${mk === munimToppersMonth ? 'selected' : ''}>${escapeHtml(SHARED_SALES_DATA[mk].label)}</option>`).join('');
+  const monthKey = munimToppersMonth;
   const options = munimToppersDeptOptions();
   el.innerHTML = options.map(d => {
-    const photos = DEPT_PHOTOS[d.id] || {};
     const rowsHtml = [1,2,3].map(rank => {
       const badge = RANK_BADGES[rank];
-      const current = photos[rank] || '';
+      const current = getTopperPhoto(d.id, monthKey, rank);
       return `<div class="topper-photo-row">
         <span class="topper-photo-rank">${badge.icon} ${badge.label}</span>
         <input type="text" id="tpa-link-${d.id}-${rank}" placeholder="Paste a Drive/Photos or image link" value="${current ? escapeHtml(current) : ''}">
@@ -3191,6 +3276,11 @@ function renderTopperPhotosAdmin(){
     </div>`;
   }).join('');
 }
+function onTopperPhotosAdminMonthChange(monthKey){
+  munimToppersMonth = monthKey;
+  renderTopperPhotosAdmin();
+  renderMunimToppersPanel(); // keep the live section in sync — it shares the same munimToppersMonth
+}
 async function onTopperPhotosAdminSave(deptId, rank){
   const input = document.getElementById(`tpa-link-${deptId}-${rank}`);
   const statusEl = document.getElementById(`tpa-status-${deptId}-${rank}`);
@@ -3198,19 +3288,19 @@ async function onTopperPhotosAdminSave(deptId, rank){
   if(!raw){ if(statusEl) statusEl.textContent = 'Paste a link first.'; return; }
   if(statusEl) statusEl.textContent = 'Saving…';
   try{
-    await saveDeptPhoto(deptId, rank, resolveDeptPhotoUrl(raw));
+    await saveDeptPhoto(deptId, munimToppersMonth, rank, resolveDeptPhotoUrl(raw));
     renderTopperPhotosAdmin();
-    if(munimToppersDept === deptId) renderMunimToppersPanel(currentMonth); // keep the live section in sync if it's showing this same department right now
+    if(munimToppersDept === deptId) renderMunimToppersPanel(); // keep the live section in sync if it's showing this same department/month right now
   } catch(err){
     if(statusEl) statusEl.textContent = describeAccessError(err, 'save this photo link');
   }
 }
 async function onTopperPhotosAdminClear(deptId, rank){
-  if(!confirm(`Remove the ${RANK_BADGES[rank].label} photo for ${deptName(deptId)}?`)) return;
+  if(!confirm(`Remove the ${RANK_BADGES[rank].label} photo for ${deptName(deptId)} — ${SHARED_SALES_DATA[munimToppersMonth] ? SHARED_SALES_DATA[munimToppersMonth].label : munimToppersMonth}?`)) return;
   try{
-    await saveDeptPhoto(deptId, rank, '');
+    await saveDeptPhoto(deptId, munimToppersMonth, rank, '');
     renderTopperPhotosAdmin();
-    if(munimToppersDept === deptId) renderMunimToppersPanel(currentMonth);
+    if(munimToppersDept === deptId) renderMunimToppersPanel();
   } catch(err){
     alert(describeAccessError(err, 'remove this photo'));
   }
@@ -3500,7 +3590,11 @@ function tabsInRange(){
 // own TLs against each other.
 function groupLabelFor(m){
   if(compareLevel === 'manager') return (m.managerName || '').trim() || 'Unassigned';
-  if(compareLevel === 'tl') return (m.tlName || '').trim() || 'Unassigned';
+  // Team Lead level deliberately returns null (not 'Unassigned') for an agent with nothing on
+  // file for Team Lead — every call site below filters nulls out with .filter(Boolean), so that
+  // agent's data simply doesn't appear anywhere in the Team Lead-level comparison, matching the
+  // Team Lead rollup cards' own behavior (see groupRowsByTLName above).
+  if(compareLevel === 'tl') return (m.tlName || '').trim() || null;
   return m.name;
 }
 // Sums Target/Achieved/BDEs across every agent in the group for one month ("every month total
@@ -3662,7 +3756,7 @@ function renderCompareView(){
     ? (tabs.length === 1 ? 'Only 1 month is in scope so far' : 'Only ' + tabs.length + ' months are in scope, so this shows a direct month-over-month read rather than a full trendline')
     : tabs.length + ' months in scope';
 
-  const names = [...new Set(tabs.flatMap(t => scopedManagersForMonth(t.key).map(groupLabelFor)))];
+  const names = [...new Set(tabs.flatMap(t => scopedManagersForMonth(t.key).map(groupLabelFor)))].filter(Boolean);
   // groups[nameIndex][tabIndex] — computed once so the chart's bar-height scale, the chart
   // itself, and the table below all agree on the same aggregated numbers.
   const groups = names.map(name => tabs.map(t =>
@@ -3722,7 +3816,7 @@ function renderAvgScoreSection(tabs){
     return;
   }
 
-  const names = [...new Set(tabs.flatMap(t => scopedManagersForMonth(t.key).map(groupLabelFor)))];
+  const names = [...new Set(tabs.flatMap(t => scopedManagersForMonth(t.key).map(groupLabelFor)))].filter(Boolean);
   const rows = names.map(name => {
     const perMonth = tabs.map(t => {
       const list = scopedManagersForMonth(t.key).filter(m => groupLabelFor(m) === name);
