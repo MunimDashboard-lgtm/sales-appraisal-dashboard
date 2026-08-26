@@ -189,6 +189,69 @@
   }
   .tp-upload-status{ font-size:10.5px; color:var(--text-muted); min-height:13px; }
 
+  /* "Performer of Munim" (renderPerformerView) — a dedicated tab that auto-advances through every
+     allowed department's Top 3, one department per slide, meant to be left running unattended
+     (e.g. on an office screen). Same RANK_BADGES gold/silver/bronze colors and same
+     computeMonthlyRanksForDept ranking as "Toppers of Munim" — this is purely a bigger,
+     slideshow-style presentation of the same underlying data, never a second ranking scheme. */
+  .pf-stage{ position:relative; display:flex; align-items:center; gap:10px; margin-top:4px; }
+  .pf-viewport{ flex:1; overflow:hidden; border-radius:20px; border:1px solid var(--border); }
+  .pf-track{ display:flex; transition: transform .6s cubic-bezier(.22,.9,.35,1); }
+  .pf-slide{
+    flex:0 0 100%; min-width:100%; box-sizing:border-box; padding:40px 24px 34px; text-align:center;
+    background:
+      radial-gradient(circle at 15% 12%, rgba(202,160,34,0.16), transparent 55%),
+      radial-gradient(circle at 85% 88%, rgba(42,120,214,0.12), transparent 55%),
+      var(--surface-1);
+  }
+  [data-theme="dark"] .pf-slide{
+    background:
+      radial-gradient(circle at 15% 12%, rgba(202,160,34,0.22), transparent 55%),
+      radial-gradient(circle at 85% 88%, rgba(57,135,229,0.16), transparent 55%),
+      #141413;
+  }
+  .pf-slide-dept{
+    font-size:20px; font-weight:800; letter-spacing:-0.01em; margin-bottom:30px;
+    background:linear-gradient(135deg, var(--series-1), var(--series-3));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .pf-podium{ display:flex; align-items:flex-end; justify-content:center; gap:22px; flex-wrap:wrap; }
+  .pf-slot{ display:flex; flex-direction:column; align-items:center; opacity:0; transform:translateY(16px); animation: pf-rise .55s ease forwards; }
+  .pf-slot.pf-rank-2{ order:1; padding-bottom:14px; animation-delay:.05s; }
+  .pf-slot.pf-rank-1{ order:2; animation-delay:.15s; }
+  .pf-slot.pf-rank-3{ order:3; padding-bottom:14px; animation-delay:.25s; }
+  @keyframes pf-rise{ to{ opacity:1; transform:translateY(0); } }
+  .pf-medal{ font-size:22px; margin-bottom:8px; }
+  .pf-rank-1 .pf-medal{ font-size:30px; animation: pf-shimmer 2.4s ease-in-out infinite; }
+  @keyframes pf-shimmer{ 0%,100%{ transform:scale(1) rotate(0deg); } 50%{ transform:scale(1.15) rotate(-6deg); } }
+  .pf-photo, .pf-photo-placeholder{ display:block; border-radius:50%; object-fit:cover; border:3px solid var(--medal-bg); box-shadow:0 0 0 5px var(--page-plane), 0 6px 18px rgba(0,0,0,0.18); }
+  .pf-photo-placeholder{ display:flex; align-items:center; justify-content:center; background:var(--page-plane); border:3px dashed var(--medal-bg); color:var(--text-muted); }
+  .pf-rank-1 .pf-photo, .pf-rank-1 .pf-photo-placeholder{ width:128px; height:128px; font-size:44px; }
+  .pf-rank-2 .pf-photo, .pf-rank-2 .pf-photo-placeholder, .pf-rank-3 .pf-photo, .pf-rank-3 .pf-photo-placeholder{ width:96px; height:96px; font-size:32px; }
+  .pf-name{ margin-top:12px; font-size:15px; font-weight:700; }
+  .pf-rank-1 .pf-name{ font-size:17px; }
+  .pf-rank-label{ margin-top:3px; font-size:11px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; padding:2px 10px; border-radius:999px; background:var(--medal-bg); color:var(--medal-fg); }
+  .pf-arrow{
+    flex:0 0 auto; width:38px; height:38px; border-radius:50%; border:1px solid var(--border);
+    background:var(--surface-1); color:var(--text-secondary); font-size:20px; line-height:1; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; transition:background .15s, color .15s;
+  }
+  .pf-arrow:hover{ background:var(--series-1); color:#fff; border-color:var(--series-1); }
+  .pf-dots{ display:flex; justify-content:center; gap:7px; margin-top:14px; }
+  .performer-dot{ width:8px; height:8px; border-radius:50%; border:none; background:var(--border); cursor:pointer; padding:0; transition:background .15s, width .15s; }
+  .performer-dot.active{ background:var(--series-1); width:22px; border-radius:5px; }
+  @media (max-width:700px){
+    .pf-podium{ gap:12px; }
+    .pf-rank-1 .pf-photo, .pf-rank-1 .pf-photo-placeholder{ width:96px; height:96px; font-size:34px; }
+    .pf-rank-2 .pf-photo, .pf-rank-2 .pf-photo-placeholder, .pf-rank-3 .pf-photo, .pf-rank-3 .pf-photo-placeholder{ width:72px; height:72px; font-size:24px; }
+    .pf-arrow{ width:32px; height:32px; font-size:16px; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .pf-slot{ animation:none; opacity:1; transform:none; }
+    .pf-rank-1 .pf-medal{ animation:none; }
+    .pf-track{ transition:none; }
+  }
+
   .card-fields-bar{ display:flex; justify-content:flex-end; margin-bottom:10px; }
   #card-fields-toggle.active{ color:var(--series-1); border-color:var(--series-1); }
   .card-fields-panel{
@@ -550,6 +613,18 @@
     </div>
 
     <div id="company-view-body"></div>
+  </section>
+
+  <section id="performer-view" hidden>
+    <div class="card compare-card">
+      <h3>🏆 Performer of Munim</h3>
+      <div class="card-sub">Every allowed department's Top 3 by % Achievement for one month, gathered into one auto-advancing slideshow — same ranks, same photos, and the same rules as "Toppers of Munim" above, just one department per slide so it can run on its own (e.g. on an office screen). Pick a month below; use the arrows/dots, or just let it play.</div>
+      <div class="range-picker">
+        <label>Month <select id="performer-view-month" onchange="onPerformerMonthChange(this.value)"></select></label>
+      </div>
+    </div>
+
+    <div id="performer-view-body"></div>
   </section>
 
   <section id="access-view" hidden>
@@ -3236,6 +3311,115 @@ function renderMunimToppersPanel(monthKeyHint){
     <div class="top-performers-grid">${slotsHtml}</div>`;
 }
 
+// ---------- "PERFORMER OF MUNIM" (dedicated tab, renderPerformerView) ----------
+// A separate tab (not just a panel) that puts every allowed department's Top 3 into one
+// auto-advancing slideshow, one department per slide, for a single chosen month. Deliberately
+// reuses munimToppersDeptOptions/munimToppersMonthOptions/computeMonthlyRanksForDept/
+// getTopperPhoto/RANK_BADGES exactly as "Toppers of Munim" does above — this tab is only a
+// bigger, unattended-friendly presentation of the same data, never a second ranking scheme or a
+// second photo store. Autoplay is a plain setInterval advancing performerSlideIndex; it always
+// gets stopped by hideAllViewSections (see NAV below) whenever the visitor navigates to any other
+// tab, and restarted by renderPerformerView, so it never keeps ticking in the background against
+// a hidden view.
+let performerViewMonth = null;   // null until first render, then the month this slideshow is showing
+let performerSlideIndex = 0;     // which department slide is currently on screen
+let performerAutoplayTimer = null;
+const PERFORMER_AUTOPLAY_MS = 5000;
+const PERFORMER_PREFERS_REDUCED_MOTION = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function stopPerformerAutoplay(){
+  if(performerAutoplayTimer){ clearInterval(performerAutoplayTimer); performerAutoplayTimer = null; }
+}
+function startPerformerAutoplay(){
+  stopPerformerAutoplay();
+  if(PERFORMER_PREFERS_REDUCED_MOTION) return; // still fully usable via the arrows/dots, just doesn't auto-advance
+  const depts = munimToppersDeptOptions();
+  if(depts.length <= 1) return; // nothing to cycle through
+  performerAutoplayTimer = setInterval(() => goToPerformerSlide(performerSlideIndex + 1), PERFORMER_AUTOPLAY_MS);
+}
+function goToPerformerSlide(i){
+  const depts = munimToppersDeptOptions();
+  if(!depts.length) return;
+  performerSlideIndex = ((i % depts.length) + depts.length) % depts.length;
+  const track = document.getElementById('performer-slide-track');
+  if(track) track.style.transform = `translateX(-${performerSlideIndex * 100}%)`;
+  document.querySelectorAll('#performer-dots .performer-dot').forEach((d, idx) => d.classList.toggle('active', idx === performerSlideIndex));
+}
+function onPerformerPrev(){ stopPerformerAutoplay(); goToPerformerSlide(performerSlideIndex - 1); startPerformerAutoplay(); }
+function onPerformerNext(){ stopPerformerAutoplay(); goToPerformerSlide(performerSlideIndex + 1); startPerformerAutoplay(); }
+function onPerformerDot(i){ stopPerformerAutoplay(); goToPerformerSlide(i); startPerformerAutoplay(); }
+function onPerformerMonthChange(monthKey){
+  performerViewMonth = monthKey;
+  performerSlideIndex = 0;
+  renderPerformerView();
+}
+function renderPerformerView(){
+  const monthSel = document.getElementById('performer-view-month');
+  const body = document.getElementById('performer-view-body');
+  if(!monthSel || !body) return;
+  const monthOptions = munimToppersMonthOptions();
+  if(!monthOptions.length){
+    monthSel.innerHTML = '';
+    body.innerHTML = '<div class="card compare-card"><div class="card-sub" style="margin:0;">No month has any Sales Data yet.</div></div>';
+    stopPerformerAutoplay();
+    return;
+  }
+  if(!performerViewMonth || !monthOptions.includes(performerViewMonth)){
+    performerViewMonth = monthOptions[monthOptions.length - 1];
+  }
+  monthSel.innerHTML = monthOptions.map(mk => `<option value="${mk}" ${mk === performerViewMonth ? 'selected' : ''}>${escapeHtml(SHARED_SALES_DATA[mk].label)}</option>`).join('');
+  const depts = munimToppersDeptOptions();
+  if(!depts.length){
+    body.innerHTML = '<div class="card compare-card"><div class="card-sub" style="margin:0;">No department with Target/Achievement data is available to you.</div></div>';
+    stopPerformerAutoplay();
+    return;
+  }
+  if(performerSlideIndex >= depts.length) performerSlideIndex = 0;
+  const monthKey = performerViewMonth;
+  const slidesHtml = depts.map(d => {
+    const ranks = computeMonthlyRanksForDept(monthKey, d.id);
+    const byRank = { 1: null, 2: null, 3: null };
+    ranks.forEach((rank, name) => { byRank[rank] = name; });
+    const rows = (SHARED_SALES_DATA[monthKey] && SHARED_SALES_DATA[monthKey].byDept[d.id]) || [];
+    const rowsByName = {};
+    rows.forEach(m => { rowsByName[m.name] = m; });
+    const podiumHtml = [2, 1, 3].map(rank => {
+      const name = byRank[rank];
+      const m = name ? rowsByName[name] : null;
+      const url = getTopperPhoto(d.id, monthKey, rank);
+      const badge = RANK_BADGES[rank];
+      const photoHtml = url
+        ? `<img class="pf-photo" src="${url}" alt="${m ? escapeHtml(m.name) : ''}">`
+        : `<div class="pf-photo-placeholder">${badge.icon}</div>`;
+      return `<div class="pf-slot pf-rank-${rank}" style="--medal-bg:${badge.bg}; --medal-fg:${badge.fg};">
+        <div class="pf-medal">${badge.icon}</div>
+        ${photoHtml}
+        <div class="pf-name">${m ? escapeHtml(m.name) : '—'}</div>
+        <div class="pf-rank-label">${badge.label}</div>
+      </div>`;
+    }).join('');
+    return `<div class="pf-slide">
+      <div class="pf-slide-dept">${escapeHtml(d.name)}</div>
+      <div class="pf-podium">${podiumHtml}</div>
+    </div>`;
+  }).join('');
+  const dotsHtml = depts.map((d, i) => `<button class="performer-dot ${i === performerSlideIndex ? 'active' : ''}" onclick="onPerformerDot(${i})" aria-label="${escapeHtml(d.name)}"></button>`).join('');
+  body.innerHTML = `
+    <div class="pf-stage" id="performer-stage">
+      <button class="pf-arrow pf-arrow-left" onclick="onPerformerPrev()" aria-label="Previous department">‹</button>
+      <div class="pf-viewport">
+        <div class="pf-track" id="performer-slide-track" style="transform:translateX(-${performerSlideIndex * 100}%);">${slidesHtml}</div>
+      </div>
+      <button class="pf-arrow pf-arrow-right" onclick="onPerformerNext()" aria-label="Next department">›</button>
+    </div>
+    <div class="pf-dots" id="performer-dots">${dotsHtml}</div>`;
+  const stage = document.getElementById('performer-stage');
+  if(stage){
+    stage.onmouseenter = stopPerformerAutoplay;
+    stage.onmouseleave = startPerformerAutoplay;
+  }
+  startPerformerAutoplay();
+}
+
 // ---------- TOPPER PHOTOS admin (lives on the "⚙️ Manage Access" tab) ----------
 // One consolidated place to set every department's 3 topper photos for one month at a time,
 // rather than the inputs living inside the "Toppers of Munim" section itself (which everyone,
@@ -4406,9 +4590,10 @@ async function renderEditLogView(){
 }
 
 // ---------- NAV ----------
-const ALL_VIEW_SECTION_IDS = ['month-view','compare-view','company-view','access-view','depts-view','presence-view','editlog-view'];
+const ALL_VIEW_SECTION_IDS = ['month-view','compare-view','company-view','performer-view','access-view','depts-view','presence-view','editlog-view'];
 function hideAllViewSections(){
   ALL_VIEW_SECTION_IDS.forEach(id => { const el = document.getElementById(id); if(el) el.hidden = true; });
+  stopPerformerAutoplay(); // never keep the slideshow's setInterval ticking against a hidden view
 }
 document.getElementById('month-tabs').addEventListener('click', e => {
   const btn = e.target.closest('button');
@@ -4424,6 +4609,10 @@ document.getElementById('month-tabs').addEventListener('click', e => {
     currentView = 'company';
     document.getElementById('company-view').hidden = false;
     renderCompanyView();
+  } else if(btn.dataset.view === 'performer'){
+    currentView = 'performer';
+    document.getElementById('performer-view').hidden = false;
+    renderPerformerView();
   } else if(btn.dataset.view === 'access'){
     currentView = 'access';
     document.getElementById('access-view').hidden = false;
@@ -4460,6 +4649,7 @@ function toggleTheme(){
   if(currentView === 'month') renderMonthView(currentMonth);
   else if(currentView === 'compare') renderCompareView();
   else if(currentView === 'company') renderCompanyView();
+  else if(currentView === 'performer') renderPerformerView();
   else if(currentView === 'access') renderAccessView();
   else if(currentView === 'depts') renderDeptsAdminView();
   else if(currentView === 'presence') renderPresenceView();
@@ -4475,6 +4665,7 @@ function renderMonthTabs(){
   ).join('')
     + (MONTH_TABS.length > 1 && currentDept !== 'QUALITY' ? `<button data-view="compare" class="${currentView==='compare'?'active':''}">Comparison</button>` : '')
     + (allowedDepartments().length > 1 ? `<button data-view="company" class="${currentView==='company'?'active':''}">🏢 Company View</button>` : '')
+    + (munimToppersDeptOptions().length > 1 ? `<button data-view="performer" class="${currentView==='performer'?'active':''}">🏆 Performer of Munim</button>` : '')
     + (isAdmin() ? `<button data-view="access" class="${currentView==='access'?'active':''}">⚙️ Manage Access</button>` : '')
     + (isAdmin() ? `<button data-view="depts" class="${currentView==='depts'?'active':''}">⚙️ Manage Departments</button>` : '')
     + (isAdmin() ? `<button data-view="presence" class="${currentView==='presence'?'active':''}">🟢 Who's Online</button>` : '')
