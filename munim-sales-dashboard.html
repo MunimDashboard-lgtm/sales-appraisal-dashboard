@@ -156,6 +156,39 @@
   .mgr-stats .cell .k{ font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.02em; }
   .mgr-stats .cell .v{ font-size:14px; font-weight:700; margin-top:2px; font-variant-numeric: tabular-nums; }
 
+  /* Manager-level rollup cards (renderManagerRollupCards) reuse .mgr-card/.mgr-stats/.avatar/
+     .status-pill exactly as-is — only the small "counts add up" caption below is new. */
+  .mgr-rollup-note{ font-size:10.5px; color:var(--text-muted); font-style:italic; margin-top:6px; }
+
+  /* "Behind Top 1" callout on an agent card (see renderManagerCards) — the figure itself is the
+     only red/bold element; the line below it is a deliberately calmer, non-red nudge. */
+  .lead-line{ font-size:13px; font-weight:700; color:var(--good); margin:2px 0 10px; }
+  .behind-block{ margin:2px 0 10px; }
+  .behind-figure{ font-size:13.5px; font-weight:700; color:var(--critical); }
+  .behind-motivation{ font-size:11.5px; font-style:italic; color:var(--text-muted); margin-top:3px; line-height:1.4; }
+
+  /* "Toppers of Munim" cross-department photo gallery panel (renderMunimToppersPanel) — a
+     distinct card, always visible regardless of department tab, with its own department
+     picker; ranks come from computeMonthlyRanksForDept, never a second ranking scheme. */
+  #munim-toppers-panel .top-performers-grid{ display:grid; grid-template-columns: repeat(3, 1fr); gap:16px; margin-top:8px; }
+  @media (max-width: 700px){ #munim-toppers-panel .top-performers-grid{ grid-template-columns: 1fr; } }
+  #munim-toppers-panel .range-picker{ margin-bottom:10px; }
+  .tp-slot{ background:var(--page-plane); border:1px solid var(--border); border-radius:12px; padding:16px; text-align:center; }
+  [data-theme="dark"] .tp-slot{ background:#141413; }
+  .tp-photo{ width:84px; height:84px; border-radius:50%; object-fit:cover; margin:0 auto 10px; display:block; border:1px solid var(--border); }
+  .tp-photo-placeholder{ display:flex; align-items:center; justify-content:center; font-size:30px; background:var(--surface-1); border:1px dashed var(--border); color:var(--text-muted); }
+  .tp-name{ font-size:14px; font-weight:700; }
+  .tp-dept{ font-size:11.5px; color:var(--text-muted); margin-top:2px; }
+  .tp-rank{ font-size:12px; font-weight:600; color:var(--text-secondary); margin-top:4px; }
+  .tp-upload-row{ margin-top:12px; display:flex; flex-direction:column; gap:6px; text-align:left; border-top:1px dashed var(--border); padding-top:10px; }
+  .tp-upload-row input[type="file"]{ font-size:11px; color:var(--text-secondary); max-width:100%; }
+  .tp-link-row{ display:flex; gap:6px; }
+  .tp-link-row input[type="text"]{
+    flex:1; min-width:0; font-family:inherit; font-size:11.5px; padding:6px 8px; border-radius:6px; border:1px solid var(--border);
+    background:var(--surface-1); color:var(--text-primary);
+  }
+  .tp-upload-status{ font-size:10.5px; color:var(--text-muted); min-height:13px; }
+
   .card-fields-bar{ display:flex; justify-content:flex-end; margin-bottom:10px; }
   #card-fields-toggle.active{ color:var(--series-1); border-color:var(--series-1); }
   .card-fields-panel{
@@ -307,6 +340,18 @@
     display:inline-block; background:var(--page-plane); border:1px solid var(--border); border-radius:999px;
     padding:2px 9px; font-size:11px; color:var(--text-secondary); margin:0 3px 3px 0;
   }
+
+  /* ---------- Topper photos (Manage Access panel) ---------- */
+  .topper-photo-dept{ border-top:1px solid var(--border); padding:12px 0; }
+  .topper-photo-dept:first-child{ border-top:none; padding-top:4px; }
+  .topper-photo-dept-name{ font-size:13px; font-weight:700; margin-bottom:8px; }
+  .topper-photo-row{ display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap; }
+  .topper-photo-rank{ font-size:12px; color:var(--text-secondary); min-width:110px; flex-shrink:0; }
+  .topper-photo-row input[type="text"]{
+    font-family:inherit; font-size:12.5px; padding:7px 10px; border-radius:8px; border:1px solid var(--border);
+    background:var(--surface-1); color:var(--text-primary); flex:1; min-width:220px;
+  }
+  .topper-photo-row .tp-upload-status{ min-height:0; }
 </style>
 </head>
 <body class="viz-root">
@@ -372,6 +417,11 @@
     </div>
   </div>
 
+  <!-- Always rendered regardless of which department tab is open (including Quality) — its own
+       department picker inside is independent of the header's #dept-select above, so anyone can
+       browse any allowed department's top 3 without switching their whole dashboard view. -->
+  <div class="card compare-card" id="munim-toppers-panel"></div>
+
   <section id="month-view">
     <div class="assumption-banner" id="dept-empty-state" hidden></div>
 
@@ -402,6 +452,7 @@
       </div>
       <div class="card-fields-panel" id="card-fields-panel" hidden></div>
 
+      <div class="manager-grid" id="manager-rollup-grid"></div>
       <div class="manager-grid" id="manager-grid"></div>
     </div>
 
@@ -489,6 +540,12 @@
       <h3>Who can see the dashboard</h3>
       <div class="card-sub">This dashboard-only allow-list (stored as private metadata, not as Sheets sharing permissions) — plus <code>amit.choudhary@themunim.com</code>, who is always allowed into every department and isn't shown below since that's built into the code rather than this list. "Edit" reopens the form above pre-filled so you can change someone's departments; "Remove" drops them from the dashboard entirely. Removing/editing someone here has no effect on their access to any raw Sheet.</div>
       <div id="access-list"></div>
+    </div>
+
+    <div class="card compare-card">
+      <h3>🏆 Topper photos</h3>
+      <div class="card-sub">One photo for each department's Top/2nd/3rd performer, shown in the "Toppers of Munim" section everyone sees. Paste a Google Drive/Photos share link (or any public image link) — there's no device-upload button here, since that needs a Google permission that broke sign-in for everyone the one time it was turned on; ask Amit before changing that.</div>
+      <div id="topper-photos-admin"></div>
     </div>
   </section>
 
@@ -655,6 +712,31 @@ Object.values(MONTHS).forEach(month => month.managers.forEach(recomputeManager))
 // Deep copy of the original (recomputed) sheet figures, kept so edits can be reset.
 let ORIGINAL_MONTHS = JSON.parse(JSON.stringify(MONTHS));
 
+// ---------- DISPLAY ACHIEVEMENT (department-conditional GST presentation) ----------
+// FST shows "Achieved" as the raw, GST-inclusive figure editors type in (m.achieved); every
+// other department instead shows the GST-stripped figure (m.revNoGst — see recomputeManager)
+// as "the achievement figure" wherever it appears as a headline stat. A row itself doesn't
+// carry a real per-row department tag — m.department is a leftover 'Sales' placeholder set in
+// parseSharedSalesRows below, never one of the 10 real department names — so which department a
+// row belongs to is whatever MONTHS[monthKey] is currently scoped to (currentDept), exactly like
+// every other render function in this file (renderKpis, renderManagerCards, etc. all read
+// MONTHS[monthKey] unconditionally rather than filtering rows by a department field). currentDept
+// is declared further down (see MULTI-DEPARTMENT SUPPORT) — safe to reference here since this is
+// only ever called from render code that runs long after boot().
+// This is a presentation-layer swap ONLY: pctAchv/roiPct/leftForRoi/totalCost/KRA scoring all
+// keep computing off the real achieved/revNoGst fields exactly as recomputeManager/computeAllScores
+// already do — only what's shown to the viewer as "Achieved" (and any %/ratio built FROM that
+// shown figure) changes.
+function displayAchievement(m){
+  return currentDept === 'FST' ? m.achieved : m.revNoGst;
+}
+// Same idea as m.pctAchv (see recomputeManager), but built from displayAchievement(m) instead of
+// the raw m.achieved — for display-only percentage call sites that must track whichever
+// "Achieved" figure is actually on screen (e.g. renderPctAchvChart, the % Achieved card field).
+function displayPctAchv(m){
+  return m.target > 0 ? (displayAchievement(m) / m.target) * 100 : 0;
+}
+
 // ---------- GOOGLE SIGN-IN + AUTHENTICATED SHEETS API ----------
 // Access to this dashboard is gated by real Google sign-in (see the #auth-gate block far
 // below) rather than by "Anyone with the link" sharing. Every fetch from here on goes through
@@ -669,6 +751,15 @@ const OAUTH_CLIENT_ID = '168275377096-mk816j9t47l2ci962qf5ov93c5lru9sd.apps.goog
 // a private key/value store for the dashboard's own access allow-list (see
 // getDashboardAllowlist/addToDashboardAllowlist below), completely separate from Sheets
 // sharing permissions. Content itself is still read exclusively through spreadsheets.readonly.
+// drive.file was added for the "Top Performers" photo gallery (see the TOP PERFORMER PHOTOS
+// section below) — it only grants access to files THIS app itself creates (the uploaded photo
+// files), never to any other file in a user's Drive, and is separate from drive.metadata above.
+// REVERTED: this scope is NOT enabled on this OAuth client's consent screen in Google Cloud
+// Console, so requesting it makes Google reject EVERY sign-in with "Error 400: invalid_request"
+// — a full outage, not a re-consent prompt. Do not re-add drive.file here until someone with
+// access to this app's Google Cloud project has added it under OAuth consent screen → Data
+// Access → scopes (Cloud Console, not this file) and confirmed sign-in still works. See
+// uploadDriveImageFile() below, which is now disabled for the same reason.
 const OAUTH_SCOPE = 'https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/drive.metadata https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile';
 
 // Only signed-in accounts in this list see the "Manage Access" tab and can add/remove entries
@@ -996,6 +1087,11 @@ function decodeDeptConfig(raw){
   const parts = (raw || '').split('|');
   return { masterSheetId: parts[1] || '', masterGid: parts[2] || '' };
 }
+// One appProperties key per department per rank slot (1/2/3) for the "Top Performers" photo
+// gallery — see the TOP PERFORMER PHOTOS section below. Deliberately a distinct prefix (checked
+// first, see applyDeptSheetConfigFromProps) even though 'dashDeptPhoto_' textually starts with
+// 'dashDept_' too — the two must never be confused for one another.
+function deptPhotoKey(deptId, rank){ return 'dashDeptPhoto_' + deptId + '_' + rank; }
 // Accepts either a full Google Sheets URL or a bare spreadsheet ID and returns just the ID.
 function extractSheetId(input){
   const s = (input || '').trim();
@@ -1005,7 +1101,7 @@ function extractSheetId(input){
 function applyDeptSheetConfigFromProps(props){
   const cfg = JSON.parse(JSON.stringify(DEFAULT_DEPT_SHEETS));
   Object.keys(props).forEach(k => {
-    if(!k.startsWith('dashDept_')) return;
+    if(!k.startsWith('dashDept_') || k.startsWith('dashDeptPhoto_')) return; // dashDeptPhoto_* is a separate store, parsed below
     cfg[k.slice('dashDept_'.length)] = decodeDeptConfig(props[k]);
   });
   DEPT_SHEETS = cfg;
@@ -1018,7 +1114,107 @@ function applyDeptSheetConfigFromProps(props){
   const costId = props['dashCostSheet'] || '';
   if(costId !== COST_SHEET_ID) COST_SHEET_TAB = null;
   COST_SHEET_ID = costId;
+  // Top Performers photo gallery — dashDeptPhoto_<deptId>_<rank> -> resolved image URL. deptId
+  // can itself contain underscores (e.g. IST_ACCOUNTING), so the greedy (.+) below still lands
+  // correctly on the trailing _<rank> thanks to the fixed {1,2,3} alternation + end anchor.
+  const photos = {};
+  Object.keys(props).forEach(k => {
+    const m = /^dashDeptPhoto_(.+)_([123])$/.exec(k);
+    if(!m) return;
+    if(!photos[m[1]]) photos[m[1]] = {};
+    photos[m[1]][m[2]] = props[k];
+  });
+  DEPT_PHOTOS = photos;
 }
+
+// ---------- TOP PERFORMER PHOTOS (per department, per rank slot 1/2/3) ----------
+// Two admin input paths feed the same storage: (a) picking a file from the device, uploaded as a
+// brand-new Drive file via the drive.file scope added to OAUTH_SCOPE above, then made
+// link-shareable so every signed-in viewer's browser can load it without needing their own Drive
+// access to that specific file; (b) pasting an existing Drive/Photos share link (or any plain
+// public image URL) directly — no upload needed, just stored as the resolved URL. Both paths
+// land in the same dashDeptPhoto_<deptId>_<rank> appProperties key (see deptPhotoKey above), read
+// back the same way, via DEPT_PHOTOS. Deliberately NOT a Google Picker integration — that needs a
+// Picker API key this session has no way to obtain; these two paths are the substitute.
+// lh3.googleusercontent.com/d/<id> is used (rather than drive.google.com/uc?export=view) as the
+// direct <img src> for an uploaded file — it renders inline reliably once the file is
+// link-shared, with no interstitial "can't scan this file" page.
+function driveImageUrl(fileId){ return 'https://lh3.googleusercontent.com/d/' + fileId; }
+// Accepts a pasted Drive/Photos share link in either of the two common shapes
+// (".../file/d/<id>/view" or "...?id=<id>") and turns it into the same direct-image URL an
+// upload would produce; anything else (a plain public image URL) is stored exactly as pasted.
+function resolveDeptPhotoUrl(raw){
+  const s = (raw || '').trim();
+  if(!s) return '';
+  let m = /\/d\/([a-zA-Z0-9_-]+)/.exec(s);
+  if(!m) m = /[?&]id=([a-zA-Z0-9_-]+)/.exec(s);
+  return m ? driveImageUrl(m[1]) : s;
+}
+async function saveDeptPhoto(deptId, rank, url){
+  await writeConfigProps({ [deptPhotoKey(deptId, rank)]: url || null });
+  if(!DEPT_PHOTOS[deptId]) DEPT_PHOTOS[deptId] = {};
+  if(url) DEPT_PHOTOS[deptId][rank] = url; else delete DEPT_PHOTOS[deptId][rank];
+}
+// Multipart Drive upload (metadata JSON part + base64 media part) — apiFetch isn't used for the
+// upload itself since it always sends JSON, but the follow-up permissions.create call below does
+// reuse it (and so gets the same 401-retry/403 handling as every other Drive/Sheets call here).
+async function uploadDriveImageFile(file, deptId, rank){
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Could not read the chosen file'));
+    reader.readAsDataURL(file);
+  });
+  const base64Data = (dataUrl.split(',')[1]) || '';
+  const mimeType = file.type || 'image/jpeg';
+  const metadata = { name: `TopPhoto_${deptId}_rank${rank}_${Date.now()}` };
+  const boundary = 'munimdashphoto' + Date.now();
+  const body =
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
+    `--${boundary}\r\nContent-Type: ${mimeType}\r\nContent-Transfer-Encoding: base64\r\n\r\n${base64Data}\r\n` +
+    `--${boundary}--`;
+  if(!accessToken) throw { code: 401, message: 'Not signed in' };
+  const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': `multipart/related; boundary="${boundary}"` },
+    body
+  });
+  if(!res.ok) throw { code: res.status, message: 'Drive upload failed (HTTP ' + res.status + ')' };
+  const data = await res.json();
+  // Link-shareable so every signed-in viewer can load the image as a plain <img src>, without
+  // needing their own Drive access to this one file (which drive.file alone would otherwise
+  // restrict to just the uploading account).
+  await apiFetch(`https://www.googleapis.com/drive/v3/files/${data.id}/permissions`, {
+    method: 'POST',
+    body: { role: 'reader', type: 'anyone' }
+  });
+  return driveImageUrl(data.id);
+}
+// DISABLED — no longer wired to any input anywhere, because it needs the drive.file scope that
+// isn't enabled on this app's Google Cloud OAuth consent screen (see OAUTH_SCOPE above) —
+// turning it on before that scope is registered breaks sign-in for everyone (this happened once
+// already). Left in place, unused, so a future admin who enables that scope in Cloud Console can
+// re-add a file-input line to the "🏆 Topper photos" card under Manage Access
+// (renderTopperPhotosAdmin) and get device-upload back without rewriting this — pass the deptId
+// that row is for, exactly like uploadDriveImageFile's own deptId parameter already expects.
+// Until then, "paste a link" (onTopperPhotosAdminSave, see the TOPPER PHOTOS admin section) is
+// the only working way to set a topper photo.
+async function onTopPhotoFileChosen(rank, inputEl){
+  const file = inputEl.files && inputEl.files[0];
+  if(!file) return;
+  const statusEl = document.getElementById('tp-status-' + rank);
+  if(statusEl) statusEl.textContent = 'Uploading…';
+  try{
+    const url = await uploadDriveImageFile(file, munimToppersDept, rank);
+    await saveDeptPhoto(munimToppersDept, rank, url);
+    renderMunimToppersPanel(currentMonth);
+  } catch(err){
+    if(statusEl) statusEl.textContent = describeAccessError(err, 'upload this photo');
+  } finally {
+    inputEl.value = '';
+  }
+}
+
 async function saveDeptSheetConfig(deptId, masterSheetIdRaw){
   const cfg = { masterSheetId: extractSheetId(masterSheetIdRaw), masterGid: '' };
   await writeConfigProps({ [deptConfigKey(deptId)]: encodeDeptConfig(cfg) });
@@ -1196,6 +1392,10 @@ const DEFAULT_DEPT_SHEETS = {
 let DEPT_SHEETS = JSON.parse(JSON.stringify(DEFAULT_DEPT_SHEETS)); // replaced by applyDeptSheetConfigFromProps() at sign-in
 let currentDept = 'FST';
 let userAllowedDepts = null; // null = admin (sees every department); else a Set of allowed ids
+// Top Performers photo gallery — deptId -> {'1': url, '2': url, '3': url}. Same appProperties
+// store as DEPT_SHEETS above (see deptPhotoKey/applyDeptSheetConfigFromProps); replaced wholesale
+// at sign-in, then patched in place by saveDeptPhoto() after an admin uploads/pastes a new photo.
+let DEPT_PHOTOS = {};
 
 // ---------- TEAM HIERARCHY (Manager -> Team Lead -> Agent) ----------
 // Dashboard-wide scope filter — applies to both the month view (which cards/KPIs/charts show)
@@ -2237,15 +2437,17 @@ function renderKpis(monthKey){
     document.getElementById('kpi-row').innerHTML = `<div style="color:var(--text-muted);font-size:12.5px;padding:8px 0;">${msg}</div>`;
     return;
   }
+  // "Achieved"/pct here are the DISPLAY figures (see displayAchievement) — GST-inclusive for
+  // FST, GST-stripped for every other department — while bdes/noOfSale/totalCost are unaffected.
   const t = salesManagers.reduce((a,m)=>({
-    target:a.target+m.target, achieved:a.achieved+m.achieved, bdes:a.bdes+m.bdes,
+    target:a.target+m.target, achieved:a.achieved+displayAchievement(m), bdes:a.bdes+m.bdes,
     totalCost:a.totalCost+m.totalCost, noOfSale:a.noOfSale+m.noOfSale
   }), {target:0,achieved:0,bdes:0,totalCost:0,noOfSale:0});
   const pct = (t.achieved/t.target*100);
   const tabIdx = MONTH_TABS.findIndex(tb => tb.key === monthKey);
   const prevTab = tabIdx > 0 ? MONTH_TABS[tabIdx-1] : null;
   const otherManagers = prevTab && MONTHS[prevTab.key] ? scopedManagersForMonth(prevTab.key).filter(hasRevenueData) : null;
-  const ot = (otherManagers && otherManagers.length) ? otherManagers.reduce((a,m)=>({target:a.target+m.target, achieved:a.achieved+m.achieved}), {target:0,achieved:0}) : null;
+  const ot = (otherManagers && otherManagers.length) ? otherManagers.reduce((a,m)=>({target:a.target+m.target, achieved:a.achieved+displayAchievement(m)}), {target:0,achieved:0}) : null;
   // No scoped agents (or no target) in the prior month — e.g. this Manager/TL/Agent filter only
   // matches someone starting this month — means there's nothing to compare against, not a 0%.
   const opct = (ot && ot.target > 0) ? (ot.achieved/ot.target*100) : null;
@@ -2274,19 +2476,24 @@ function renderKpis(monthKey){
 function renderTargetAchievedChart(monthKey){
   const managers = scopedManagersForMonth(monthKey).filter(hasRevenueData); // revenue chart — skip N/A managers
   if(!managers.length){ document.getElementById('chart-target-achieved').innerHTML = '<div style="color:var(--text-muted);font-size:12.5px;padding:8px 0;">No revenue data for this month yet.</div>'; return; }
-  const maxVal = Math.max(...managers.map(m=>Math.max(m.target, m.achieved))) * 1.08;
+  // Bars show the DISPLAY achievement (see displayAchievement) — GST-inclusive for FST,
+  // GST-stripped for every other department — so the scale/fills/tooltip all agree with the
+  // same figure the agent cards and KPI row show as "Achieved".
+  const maxVal = Math.max(...managers.map(m=>Math.max(m.target, displayAchievement(m)))) * 1.08;
   const html = managers.map((m,i) => {
-    const fillPct = (m.achieved/maxVal*100).toFixed(2);
+    const achieved = displayAchievement(m);
+    const pct = displayPctAchv(m);
+    const fillPct = (achieved/maxVal*100).toFixed(2);
     const tickPct = (m.target/maxVal*100).toFixed(2);
-    const color = statusColor(m.pctAchv);
+    const color = statusColor(pct);
     return `
       <div class="bar-row">
         <div class="bname">${m.name}</div>
-        <div class="bar-track" data-tip="${m.name}: achieved ${fmtINR(m.achieved)} of ${fmtINR(m.target)} target (${m.pctAchv.toFixed(1)}%)">
+        <div class="bar-track" data-tip="${m.name}: achieved ${fmtINR(achieved)} of ${fmtINR(m.target)} target (${pct.toFixed(1)}%)">
           <div class="bar-fill" style="width:${fillPct}%; background:${color};"></div>
           <div class="bar-target-tick" style="left:${tickPct}%;"></div>
         </div>
-        <div class="bar-val">${fmtINR(m.achieved)} / ${fmtINR(m.target)}</div>
+        <div class="bar-val">${fmtINR(achieved)} / ${fmtINR(m.target)}</div>
       </div>`;
   }).join('');
   document.getElementById('chart-target-achieved').innerHTML = html;
@@ -2296,16 +2503,20 @@ function renderTargetAchievedChart(monthKey){
 function renderPctAchvChart(monthKey){
   const managers = scopedManagersForMonth(monthKey).filter(hasRevenueData);
   if(!managers.length){ document.getElementById('chart-pct-achv').innerHTML = '<div style="color:var(--text-muted);font-size:12.5px;padding:8px 0;">No revenue data for this month yet.</div>'; return; }
+  // Uses displayPctAchv (built from displayAchievement) rather than the raw m.pctAchv — see the
+  // DISPLAY ACHIEVEMENT section — so this chart's own title ("% of Achievement") always matches
+  // whichever achievement figure is shown elsewhere on the page for the current department.
   const html = managers.map(m => {
-    const w = Math.min(m.pctAchv, 100);
-    const color = statusColor(m.pctAchv);
+    const pct = displayPctAchv(m);
+    const w = Math.min(pct, 100);
+    const color = statusColor(pct);
     return `
       <div class="pct-bar-row">
         <div class="bname">${m.name}</div>
-        <div class="pct-track" data-tip="${m.name}: ${m.pctAchv.toFixed(1)}% of target — ${statusLabel(m.pctAchv)}">
+        <div class="pct-track" data-tip="${m.name}: ${pct.toFixed(1)}% of target — ${statusLabel(pct)}">
           <div class="pct-fill" style="width:${w}%; background:${color};"></div>
         </div>
-        <div class="pct-label" style="color:${color}">${m.pctAchv.toFixed(1)}%</div>
+        <div class="pct-label" style="color:${color}">${pct.toFixed(1)}%</div>
       </div>`;
   }).join('');
   document.getElementById('chart-pct-achv').innerHTML = html;
@@ -2313,14 +2524,15 @@ function renderPctAchvChart(monthKey){
 }
 
 // ---------- CARD FIELDS FILTER ----------
-// Every optional data point a manager card CAN show, beyond the fixed Target/Achieved/BDEs/
-// ROI% block and the Master-Sheet sub-metrics — both of which always show, unchanged. Viewers
-// pick which of these appear via the "Customize fields" panel; nothing here is on by default,
-// so a fresh session looks exactly like the dashboard did before this feature existed.
+// Every optional data point a manager card CAN show, beyond the fixed Target/Achieved/No. of
+// Sale/BDEs/ROI% block and the Master-Sheet sub-metrics — all of which always show, unchanged.
+// Viewers pick which of these appear via the "Customize fields" panel; nothing here is on by
+// default, so a fresh session looks exactly like the dashboard did before this feature existed.
+// (No. of Sale used to live here too, but is now always shown on the card face — see
+// renderManagerCards — so it's been promoted out of this optional list.)
 const CARD_FIELD_DEFS = [
-  {key:'noOfSale', label:'No. of Sale', get:m=>m.noOfSale, fmt:v=>fmtNum(v)},
   {key:'revNoGst', label:'Revenue (w/o GST)', get:m=>m.revNoGst, fmt:v=>fmtINR(v)},
-  {key:'pctAchv', label:'% Achieved', get:m=>m.pctAchv, fmt:v=>v.toFixed(1)+'%'},
+  {key:'pctAchv', label:'% Achieved', get:m=>displayPctAchv(m), fmt:v=>v.toFixed(1)+'%'},
   {key:'avgPerBde', label:'Avg Revenue / BDE', get:m=>m.avgPerBde, fmt:v=>fmtINR(v)},
   {key:'salary', label:'Salary Cost', get:m=>m.salary, fmt:v=>fmtINR(v)},
   {key:'otherCost', label:'Other Cost', get:m=>m.otherCost, fmt:v=>fmtINR(v)},
@@ -2428,11 +2640,44 @@ function computeMonthlyRanks(monthKey){
   ranked.slice(0,3).forEach((m,i) => ranks.set(m.name, i+1));
   return ranks;
 }
+// Same ranking rule as computeMonthlyRanks above (top-3 by pctAchv among rows with revenue data
+// this month), but for an EXPLICIT department rather than whatever MONTHS[monthKey] happens to
+// be scoped to (currentDept). Reads straight from SHARED_SALES_DATA's per-department buckets —
+// the same single shared-sheet fetch that MONTHS itself is built from (see refreshAllFromSheet),
+// just not narrowed to currentDept — so the "Toppers of Munim" panel below can show any allowed
+// department's top 3 without switching the whole dashboard's department tab or re-fetching
+// anything. Returns an empty Map (rendered as "no one ranked yet") if that department has no
+// rows this month, or if no Sales Data Sheet is connected at all yet.
+function computeMonthlyRanksForDept(monthKey, deptId){
+  const ranks = new Map();
+  const rows = (SHARED_SALES_DATA[monthKey] && SHARED_SALES_DATA[monthKey].byDept[deptId]) || [];
+  const ranked = rows.filter(hasRevenueData).slice().sort((a,b) => b.pctAchv - a.pctAchv);
+  ranked.slice(0,3).forEach((m,i) => ranks.set(m.name, i+1));
+  return ranks;
+}
 const RANK_BADGES = { 1: {icon:'🏆', label:'Top Performer', bg:'#caa022', fg:'#3a2d05'}, 2: {icon:'🥈', label:'2nd Rank', bg:'#b9c2cc', fg:'#2b3138'}, 3: {icon:'🥉', label:'3rd Rank', bg:'#c98a5e', fg:'#3a220f'} };
+
+// Highest displayAchievement() across the WHOLE current department for monthKey — same "whole
+// department, regardless of the Team-view filter" rule as computeMonthlyRanks just above, and
+// for the same reason: a stable "how far behind the department's own #1" figure that doesn't
+// shift depending on what's currently being viewed. Used by the "Behind Top 1" callout in
+// renderManagerCards below — deliberately a separate figure from the pctAchv-based rank badge
+// above (that one intentionally keeps ranking by raw pctAchv; this one compares the DISPLAY
+// achievement figure, which is what the callout's own ₹ gap has to be consistent with). Returns
+// 0 when nobody in the department has revenue data yet this month.
+function topDisplayAchievementForMonth(monthKey){
+  const d = MONTHS[monthKey];
+  if(!d || !d.managers) return 0;
+  return d.managers.filter(hasRevenueData).reduce((max, m) => Math.max(max, displayAchievement(m) || 0), 0);
+}
 
 function renderManagerCards(monthKey){
   const d = MONTHS[monthKey]; // kept unfiltered — computeAllScores needs the full-month baseline
   const ranks = computeMonthlyRanks(monthKey);
+  // Whole-department high-water mark for the "Behind Top 1" callout below — see
+  // topDisplayAchievementForMonth's own comment for why this is deliberately NOT the same
+  // pctAchv-based ranking as computeMonthlyRanks above.
+  const topAchieved = topDisplayAchievementForMonth(monthKey);
   // Within whatever's currently in scope, the best % Achievement leads the grid — "who's on top
   // this month" reads straight off the page instead of needing to scan every card. Agents with
   // no revenue data yet (KRA-only) sort to the end, keeping their original relative order.
@@ -2474,9 +2719,13 @@ function renderManagerCards(monthKey){
 
     const dept = m.department || 'Sales';
     const locLine = (m.city === '—' && m.state === '—') ? dept : `${dept} · ${m.city}, ${m.state}`;
+    // Status pill and stat block below both use the DISPLAY figures (displayAchievement/
+    // displayPctAchv — see the DISPLAY ACHIEVEMENT section) so the pill's "On track"/"Behind
+    // target" label always agrees with the Achieved ₹ figure shown right next to it.
+    const displayPct = hasRevenue ? displayPctAchv(m) : 0;
     const pillHtml = hasRevenue
-      ? `<div class="status-pill" style="background:${statusColor(m.pctAchv)}22; color:${statusColor(m.pctAchv)}">
-          <span class="dot" style="background:${statusColor(m.pctAchv)}"></span>${statusLabel(m.pctAchv)}
+      ? `<div class="status-pill" style="background:${statusColor(displayPct)}22; color:${statusColor(displayPct)}">
+          <span class="dot" style="background:${statusColor(displayPct)}"></span>${statusLabel(displayPct)}
         </div>`
       : `<div class="status-pill" style="background:var(--text-muted)22; color:var(--text-muted)">
           <span class="dot" style="background:var(--text-muted)"></span>KRA input only
@@ -2484,11 +2733,36 @@ function renderManagerCards(monthKey){
     const statsHtml = hasRevenue
       ? `<div class="mgr-stats">
           <div class="cell"><div class="k">Target</div><div class="v">${fmtINR(m.target)}</div></div>
-          <div class="cell"><div class="k">Achieved</div><div class="v">${fmtINR(m.achieved)}</div></div>
+          <div class="cell"><div class="k">Achieved</div><div class="v">${fmtINR(displayAchievement(m))}</div></div>
+          <div class="cell"><div class="k">No. of Sale</div><div class="v">${fmtNum(m.noOfSale)}</div></div>
           <div class="cell"><div class="k">BDEs</div><div class="v">${m.bdes}</div></div>
           ${costFieldsAllowed ? `<div class="cell"><div class="k">ROI %</div><div class="v">${m.roiPct.toFixed(1)}%</div></div>` : ''}
         </div>`
       : `<div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">No Target/Achieved on file yet — add them via "✏️ Edit raw data" once this manager has revenue-style output, or leave as KRA-only (Leadership/Reporting/Attrition still score normally).</div>`;
+
+    // "Behind Top 1" — how far this agent sits from the department's own #1 this month (by
+    // displayAchievement, not the pctAchv-based rank badge above — see
+    // topDisplayAchievementForMonth). The agent who IS on top gets a celebratory line instead of
+    // a ₹ gap; everyone with revenue data gets a tiered, genuinely encouraging nudge below the
+    // bold red figure rather than the figure itself repeating in a softer color.
+    let behindHtml = '';
+    if(hasRevenue && topAchieved > 0){
+      const gap = Math.max(0, topAchieved - displayAchievement(m));
+      if(gap <= 0){
+        behindHtml = `<div class="lead-line">🏆 Leading the department this month!</div>`;
+      } else {
+        const gapPct = (gap / topAchieved) * 100;
+        const motivation = gapPct <= 10
+          ? "So close — you're within striking distance of the No. 1 spot!"
+          : gapPct <= 20
+          ? "We're confident you'll take the top spot soon — keep pushing!"
+          : "Every top rank starts with the next sale — keep going!";
+        behindHtml = `<div class="behind-block">
+          <div class="behind-figure">Behind Top: ${fmtINR(gap)}</div>
+          <div class="behind-motivation">${motivation}</div>
+        </div>`;
+      }
+    }
 
     return `
     <div class="mgr-card">
@@ -2502,6 +2776,7 @@ function renderManagerCards(monthKey){
         ${pillHtml}
       </div>
       ${statsHtml}
+      ${behindHtml}
       ${renderExtraCardFields(m)}
       ${renderSubMetrics(m.subMetrics)}
 
@@ -2547,6 +2822,221 @@ function renderManagerCards(monthKey){
     </div>`;
   }).join('');
   document.getElementById('manager-grid').innerHTML = html;
+}
+
+// ---------- MANAGER-LEVEL ROLLUP (rolls the current scope's rows up by managerName) ----------
+// Groups whatever scopedManagersForMonth(monthKey) already returns (so this respects the
+// Team-view filter exactly like the agent-card grid below it) by each row's own managerName,
+// trimmed/case-folded for grouping. Rows with no managerName on file (most departments outside
+// FST/wherever the sheet tracks it yet) land in a single "Unassigned" bucket.
+function groupRowsByManagerName(rows){
+  const groups = new Map(); // lower-cased key -> { label, rows: [] }
+  rows.forEach(m => {
+    const raw = (m.managerName || '').trim();
+    const key = raw ? raw.toLowerCase() : '__unassigned__';
+    if(!groups.has(key)) groups.set(key, { label: raw || 'Unassigned', rows: [] });
+    groups.get(key).rows.push(m);
+  });
+  return groups;
+}
+function renderManagerRollupCards(monthKey){
+  const el = document.getElementById('manager-rollup-grid');
+  if(!el) return;
+  const rows = scopedManagersForMonth(monthKey);
+  if(!rows.length){
+    // Same empty-scope tone as renderKpis just above — distinguishes an honestly-empty month
+    // from the Team-view filter matching nobody.
+    const teamFilterActive = !!(teamFilterManager || teamFilterTL || teamFilterAgent);
+    const msg = teamFilterActive
+      ? 'No agents match the selected Manager/Team Lead/Agent filter for this month.'
+      : 'No agent data for this month yet.';
+    el.innerHTML = `<div style="color:var(--text-muted);font-size:12.5px;padding:8px 0;">${msg}</div>`;
+    return;
+  }
+  const groups = groupRowsByManagerName(rows);
+  // Alphabetical by manager name, with the "Unassigned" bucket always pushed to the end
+  // regardless of where it'd otherwise alphabetize to.
+  const orderedKeys = [...groups.keys()].sort((a,b) => groups.get(a).label.localeCompare(groups.get(b).label));
+  orderedKeys.sort((a,b) => (a === '__unassigned__' ? 1 : 0) - (b === '__unassigned__' ? 1 : 0));
+  const html = orderedKeys.map((key, i) => {
+    const g = groups.get(key);
+    const totals = g.rows.reduce((acc, m) => {
+      acc.target += m.target;
+      acc.achieved += displayAchievement(m); // GST-adjusted display figure — see displayAchievement
+      acc.bdes += m.bdes;
+      acc.noOfSale += m.noOfSale;
+      acc.m0 += m.m0Count || 0;
+      acc.m1 += m.m1Count || 0;
+      acc.m2 += m.m2Count || 0;
+      acc.m2Plus += m.m2PlusCount || 0;
+      return acc;
+    }, { target:0, achieved:0, bdes:0, noOfSale:0, m0:0, m1:0, m2:0, m2Plus:0 });
+    const pct = totals.target > 0 ? (totals.achieved / totals.target * 100) : null;
+    const color = statusColor(pct === null ? 0 : pct);
+    const initials = g.label.slice(0,2).toUpperCase();
+    const avatarColor = COLORS[i % COLORS.length];
+    // Only non-zero M-buckets show at all (no "0" placeholders) — see the task's own instruction
+    // that a manager with, say, no M2+ agents this month simply omits that stat rather than
+    // showing a misleading zero.
+    const bucketCells = [
+      totals.m0 > 0 ? ['M0 Agent Count', fmtNum(totals.m0)] : null,
+      totals.m1 > 0 ? ['M1 Agent Count', fmtNum(totals.m1)] : null,
+      totals.m2 > 0 ? ['M2 Agent Count', fmtNum(totals.m2)] : null,
+      totals.m2Plus > 0 ? ['M2+ Agent Count', fmtNum(totals.m2Plus)] : null
+    ].filter(Boolean);
+    const bucketSum = totals.m0 + totals.m1 + totals.m2 + totals.m2Plus;
+    // Calmly notes the expected identity when it actually holds for this group — never claims it
+    // when messy sheet data means it doesn't (e.g. bdes not yet updated for a new joiner).
+    const bucketNote = (bucketCells.length && bucketSum === totals.bdes)
+      ? `<div class="mgr-rollup-note">M0–M2+ Agent Counts add up to this team's Total BDEs.</div>`
+      : '';
+    const bucketHtml = bucketCells.length
+      ? `<div class="mgr-stats">${bucketCells.map(([k,v]) => `<div class="cell"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('')}</div>${bucketNote}`
+      : '';
+    return `
+    <div class="mgr-card">
+      <div class="mgr-head">
+        <div class="avatar" style="background:${avatarColor}">${initials}</div>
+        <div>
+          <div class="mgr-name">${escapeHtml(g.label)}</div>
+          <div class="mgr-loc">${g.rows.length} agent${g.rows.length === 1 ? '' : 's'}</div>
+        </div>
+        ${pct !== null ? `<div class="status-pill" style="background:${color}22; color:${color}"><span class="dot" style="background:${color}"></span>${statusLabel(pct)}</div>` : ''}
+      </div>
+      <div class="mgr-stats">
+        <div class="cell"><div class="k">Team Target</div><div class="v">${fmtINR(totals.target)}</div></div>
+        <div class="cell"><div class="k">Team Achieved</div><div class="v">${fmtINR(totals.achieved)}</div></div>
+        <div class="cell"><div class="k">% of Achievement</div><div class="v" style="color:${color}">${pct === null ? '—' : pct.toFixed(1)+'%'}</div></div>
+        <div class="cell"><div class="k">Total BDEs</div><div class="v">${totals.bdes}</div></div>
+        <div class="cell"><div class="k">Total Sales</div><div class="v">${fmtNum(totals.noOfSale)}</div></div>
+      </div>
+      ${bucketHtml}
+    </div>`;
+  }).join('');
+  el.innerHTML = html;
+}
+
+// ---------- TOPPERS OF MUNIM (cross-department top-3 photo gallery, one section for everyone) ----------
+// Always visible regardless of which department tab is open (including Quality — see its own
+// #munim-toppers-panel placement in the HTML, outside both #sales-view-inner and
+// #quality-view-inner). Carries its own department picker (munimToppersDept) that is completely
+// independent of the header's #dept-select/currentDept, so any signed-in viewer can browse any
+// department they're allowed to see without switching their whole dashboard view. Ranking reuses
+// computeMonthlyRanksForDept — never a second ranking scheme — so the 3 names shown here always
+// match the 🏆/🥈/🥉 ribbon that department's own agent-card grid shows when you actually switch
+// to it. Upload/paste-link controls only render for isAdmin() — the same gate every other
+// dashboard-config control in this file already uses — and always save against whichever
+// department is currently picked in THIS panel's own selector, not currentDept.
+let munimToppersDept = null; // null until first render, then holds this panel's own department choice
+function munimToppersDeptOptions(){
+  // Quality has no Target/Achieved sales data, so "top by % Achievement" doesn't apply there —
+  // left out of this picker's own options (its main #dept-select tab is unaffected).
+  return allowedDepartments().filter(d => d.id !== 'QUALITY');
+}
+function onMunimToppersDeptChange(deptId){
+  munimToppersDept = deptId;
+  renderMunimToppersPanel(currentMonth);
+}
+function renderMunimToppersPanel(monthKey){
+  const el = document.getElementById('munim-toppers-panel');
+  if(!el) return;
+  const options = munimToppersDeptOptions();
+  if(!options.length){ el.innerHTML = ''; return; }
+  if(!munimToppersDept || !options.some(d => d.id === munimToppersDept)) munimToppersDept = options[0].id;
+  const rows = (monthKey && SHARED_SALES_DATA[monthKey] && SHARED_SALES_DATA[monthKey].byDept[munimToppersDept]) || [];
+  const ranks = monthKey ? computeMonthlyRanksForDept(monthKey, munimToppersDept) : new Map();
+  const byRank = { 1: null, 2: null, 3: null };
+  ranks.forEach((rank, name) => { byRank[rank] = name; });
+  const rowsByName = {};
+  rows.forEach(m => { rowsByName[m.name] = m; });
+  const photos = DEPT_PHOTOS[munimToppersDept] || {};
+  const deptSelectHtml = `<div class="range-picker">
+    <label>Department
+      <select id="munim-toppers-dept-select" onchange="onMunimToppersDeptChange(this.value)">
+        ${options.map(d => `<option value="${d.id}" ${d.id === munimToppersDept ? 'selected' : ''}>${escapeHtml(d.name)}</option>`).join('')}
+      </select>
+    </label>
+  </div>`;
+  // Read-only for everyone, admins included — setting a photo happens in one place, the
+  // "🏆 Topper photos" card under "⚙️ Manage Access" (see renderTopperPhotosAdmin below), rather
+  // than a second set of inputs repeated here. Keeps this section — the one every signed-in
+  // viewer sees — simple and uncluttered.
+  const slotsHtml = [1,2,3].map(rank => {
+    const name = byRank[rank];
+    const m = name ? rowsByName[name] : null;
+    const url = photos[rank];
+    const badge = RANK_BADGES[rank];
+    const photoHtml = url
+      ? `<img class="tp-photo" src="${url}" alt="${m ? escapeHtml(m.name) : ''}">`
+      : `<div class="tp-photo tp-photo-placeholder">${badge.icon}</div>`;
+    const infoHtml = m
+      ? `<div class="tp-name">${escapeHtml(m.name)}</div>
+         <div class="tp-dept">${escapeHtml(deptName(munimToppersDept))}</div>
+         <div class="tp-rank">${badge.icon} ${badge.label}</div>`
+      : `<div class="tp-name" style="color:var(--text-muted)">No one ranked yet</div>
+         <div class="tp-rank">${badge.icon} ${badge.label}</div>`;
+    return `<div class="tp-slot">
+      ${photoHtml}
+      ${infoHtml}
+    </div>`;
+  }).join('');
+  el.innerHTML = `
+    <h3>🏆 Toppers of Munim</h3>
+    <div class="card-sub">This month's top 3 by % Achievement for whichever department you pick below — independent of the Department tab above, so anyone can check any allowed department's toppers. ${isAdmin() ? 'Set photos from "⚙️ Manage Access" → "Topper photos".' : ''}</div>
+    ${deptSelectHtml}
+    <div class="top-performers-grid">${slotsHtml}</div>`;
+}
+
+// ---------- TOPPER PHOTOS admin (lives on the "⚙️ Manage Access" tab) ----------
+// One consolidated place to set every department's 3 topper photos, rather than the inputs
+// living inside the "Toppers of Munim" section itself (which everyone, not just admins, sees) —
+// simpler to find, and grouped with every other admin-only dashboard control.
+function renderTopperPhotosAdmin(){
+  const el = document.getElementById('topper-photos-admin');
+  if(!el) return;
+  const options = munimToppersDeptOptions();
+  el.innerHTML = options.map(d => {
+    const photos = DEPT_PHOTOS[d.id] || {};
+    const rowsHtml = [1,2,3].map(rank => {
+      const badge = RANK_BADGES[rank];
+      const current = photos[rank] || '';
+      return `<div class="topper-photo-row">
+        <span class="topper-photo-rank">${badge.icon} ${badge.label}</span>
+        <input type="text" id="tpa-link-${d.id}-${rank}" placeholder="Paste a Drive/Photos or image link" value="${current ? escapeHtml(current) : ''}">
+        <button class="icon-btn" onclick="onTopperPhotosAdminSave('${d.id}', ${rank})">Save</button>
+        ${current ? `<button class="reset-link" onclick="onTopperPhotosAdminClear('${d.id}', ${rank})">Clear</button>` : ''}
+        <span class="tp-upload-status" id="tpa-status-${d.id}-${rank}"></span>
+      </div>`;
+    }).join('');
+    return `<div class="topper-photo-dept">
+      <div class="topper-photo-dept-name">${escapeHtml(d.name)}</div>
+      ${rowsHtml}
+    </div>`;
+  }).join('');
+}
+async function onTopperPhotosAdminSave(deptId, rank){
+  const input = document.getElementById(`tpa-link-${deptId}-${rank}`);
+  const statusEl = document.getElementById(`tpa-status-${deptId}-${rank}`);
+  const raw = input ? input.value.trim() : '';
+  if(!raw){ if(statusEl) statusEl.textContent = 'Paste a link first.'; return; }
+  if(statusEl) statusEl.textContent = 'Saving…';
+  try{
+    await saveDeptPhoto(deptId, rank, resolveDeptPhotoUrl(raw));
+    renderTopperPhotosAdmin();
+    if(munimToppersDept === deptId) renderMunimToppersPanel(currentMonth); // keep the live section in sync if it's showing this same department right now
+  } catch(err){
+    if(statusEl) statusEl.textContent = describeAccessError(err, 'save this photo link');
+  }
+}
+async function onTopperPhotosAdminClear(deptId, rank){
+  if(!confirm(`Remove the ${RANK_BADGES[rank].label} photo for ${deptName(deptId)}?`)) return;
+  try{
+    await saveDeptPhoto(deptId, rank, '');
+    renderTopperPhotosAdmin();
+    if(munimToppersDept === deptId) renderMunimToppersPanel(currentMonth);
+  } catch(err){
+    alert(describeAccessError(err, 'remove this photo'));
+  }
 }
 
 function onEditPanelToggle(monthKey, name, isOpen){
@@ -2724,6 +3214,10 @@ function renderQualityMonthView(monthKey){
 function renderMonthView(monthKey){
   currentMonth = monthKey;
   renderTeamFilterBar();
+  // Unconditional and first — #munim-toppers-panel lives outside both #sales-view-inner and
+  // #quality-view-inner (see its HTML placement) specifically so it renders the same way no
+  // matter which branch below runs, Quality department included.
+  renderMunimToppersPanel(monthKey);
   const salesInner = document.getElementById('sales-view-inner');
   const qualityInner = document.getElementById('quality-view-inner');
   if(currentDept === 'QUALITY'){
@@ -2745,13 +3239,14 @@ function renderMonthView(monthKey){
         emptyEl.innerHTML = `Still loading <b>${deptName(currentDept)}</b>'s data from Google Sheets — if this doesn't update in a moment, click "🔄 Refresh from Sheet".`;
       }
     }
-    ['kpi-row','chart-target-achieved','chart-pct-achv','manager-grid'].forEach(id => { const el = document.getElementById(id); if(el) el.innerHTML = ''; });
+    ['kpi-row','chart-target-achieved','chart-pct-achv','manager-rollup-grid','manager-grid'].forEach(id => { const el = document.getElementById(id); if(el) el.innerHTML = ''; });
     return;
   }
   if(emptyEl) emptyEl.hidden = true;
   renderKpis(monthKey);
   renderTargetAchievedChart(monthKey);
   renderPctAchvChart(monthKey);
+  renderManagerRollupCards(monthKey);
   renderManagerCards(monthKey);
 }
 
@@ -2834,8 +3329,10 @@ function groupLabelFor(m){
 // target and achievement as per their Team data"), and averages each member's own weighted KRA
 // Final Score. An empty list (this group had nobody in scope that month) comes back inert
 // (hasRevenue:false, avgScore:null) so callers can render "—" instead of a misleading 0/NaN.
+// "achieved"/pctAchv here are the DISPLAY figures (see displayAchievement) — this feeds the
+// Comparison tab's trend chart and table, both headline "Achieved"/"%" displays.
 function aggregateGroup(monthKey, list){
-  const t = list.reduce((a,m)=>({target:a.target+m.target, achieved:a.achieved+m.achieved, bdes:a.bdes+m.bdes}), {target:0,achieved:0,bdes:0});
+  const t = list.reduce((a,m)=>({target:a.target+m.target, achieved:a.achieved+displayAchievement(m), bdes:a.bdes+m.bdes}), {target:0,achieved:0,bdes:0});
   const hasRevenue = list.some(hasRevenueData);
   const pctAchv = t.target > 0 ? (t.achieved/t.target*100) : 0;
   const scores = list.map(m => computeAllScores(m, monthKey, MONTHS[monthKey]).weighted).filter(v => v !== null && v !== undefined && !isNaN(v));
@@ -3036,6 +3533,7 @@ function renderAccessRows(entries){
 async function renderAccessView(){
   hideAccessError();
   renderGrantDeptCheckboxes([]);
+  renderTopperPhotosAdmin();
   const costCb = document.getElementById('grant-cost-access');
   if(costCb) costCb.checked = false;
   document.getElementById('access-list').innerHTML = '<div style="color:var(--text-muted);font-size:12.5px;">Loading…</div>';
