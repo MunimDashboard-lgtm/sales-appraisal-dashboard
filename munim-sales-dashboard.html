@@ -1652,8 +1652,14 @@ const HEADER_PATTERNS = [
   // Matches both the old bare "Name" header and the newer "Agent Name" wording — anchored so it
   // never also swallows "TL Name"/"Manager Name" (those are matched by their own rules below).
   ['name', /^(agent\s*)?name$/i],
-  ['tlName', /^tl\s*name$/i],
-  ['managerName', /^manager\s*name$/i],
+  // Accepts "TL", "TL Name", "Team Lead" or "Team Lead Name" — previously this only matched
+  // the exact wording "TL Name", so a sheet column titled just "TL" or "Team Lead" (the Quality
+  // Data Sheet's own header matcher already accepted "TL" bare — see matchQualityHeader below —
+  // just this one never did) silently left every row's Team Lead blank, which is what made the
+  // new Team Lead rollup cards show one big "Unassigned" group instead of real names even though
+  // the sheet itself had nothing wrong with it.
+  ['tlName', /^(tl|team\s*lead)(\s*name)?$/i],
+  ['managerName', /^manager(\s*name)?$/i],
   ['state', /^state$/i],
   ['city', /^city$/i],
   // Most-specific first: "Expansion Target Achieved" and "Expansion Target" would otherwise
