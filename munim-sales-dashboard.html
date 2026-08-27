@@ -1355,6 +1355,21 @@ function resolveDeptPhotoUrl(raw){
   if(!m) m = /[?&]id=([a-zA-Z0-9_-]+)/.exec(s);
   return m ? driveImageUrl(m[1]) : s;
 }
+// A photo saved via "📷 Upload from device" is stored as a short "gsf:<fileId>" token (see
+// apps_script_backend.gs's uploadPhoto_) rather than a URL — a real serving URL for it would be
+// 90+ bytes before the file id even starts, which blows the ~81-124 byte budget the Drive
+// appProperties storage this all lives in enforces per saved value (see deptPhotoKey/saveDeptPhoto
+// above). This expands that token into an actual <img src> URL at render time, pointed at the
+// dashboard's own Apps Script backend (which serves the file back out — see servePhoto_ there).
+// Only used right before painting an <img>; the raw token is what's actually stored/round-tripped
+// through the "Topper photos" admin inputs, so re-saving an unchanged field never tries to write
+// back an oversized expanded URL.
+function expandTopperPhotoUrl(raw){
+  const s = (raw || '').trim();
+  if(!s) return '';
+  if(s.startsWith('gsf:')) return ACTIVITY_BACKEND_URL + '?photo=' + encodeURIComponent(s.slice(4));
+  return s;
+}
 async function saveDeptPhoto(deptId, monthKey, rank, url){
   await writeConfigProps({ [deptPhotoKey(deptId, monthKey, rank)]: url || null });
   if(!DEPT_PHOTOS_BY_MONTH[deptId]) DEPT_PHOTOS_BY_MONTH[deptId] = {};
@@ -3305,7 +3320,7 @@ function renderMunimToppersPanel(monthKeyHint){
     const url = getTopperPhoto(munimToppersDept, monthKey, rank);
     const badge = RANK_BADGES[rank];
     const photoHtml = url
-      ? `<img class="tp-photo" src="${url}" alt="${m ? escapeHtml(m.name) : ''}">`
+      ? `<img class="tp-photo" src="${escapeHtml(expandTopperPhotoUrl(url))}" alt="${m ? escapeHtml(m.name) : ''}">`
       : `<div class="tp-photo tp-photo-placeholder">${badge.icon}</div>`;
     const infoHtml = m
       ? `<div class="tp-name">${escapeHtml(m.name)}</div>
@@ -3402,7 +3417,7 @@ function renderPerformerView(){
       const url = getTopperPhoto(d.id, monthKey, rank);
       const badge = RANK_BADGES[rank];
       const photoHtml = url
-        ? `<img class="pf-photo" src="${url}" alt="${m ? escapeHtml(m.name) : ''}">`
+        ? `<img class="pf-photo" src="${escapeHtml(expandTopperPhotoUrl(url))}" alt="${m ? escapeHtml(m.name) : ''}">`
         : `<div class="pf-photo-placeholder">${badge.icon}</div>`;
       return `<div class="pf-slot pf-rank-${rank}" style="--medal-bg:${badge.bg}; --medal-fg:${badge.fg};">
         <div class="pf-medal">${badge.icon}</div>
@@ -3523,11 +3538,12 @@ function fileToUploadPayload(file, maxDim){
 }
 // The "📷 Upload from device" control on each topper-photo row (see renderTopperPhotosAdmin) —
 // relays the chosen photo through the dashboard's own Apps Script backend (ACTIVITY_BACKEND_URL,
-// action 'uploadPhoto'), which pushes it to the same public GitHub Pages repo pasted links already
-// point at and hands back that public URL. Saves exactly like a pasted link once the URL is back,
-// so every other part of the topper-photo system (getTopperPhoto, "Toppers of Munim", "Performer
-// of Munim") treats an uploaded photo identically to a pasted one. See apps_script_backend.gs's
-// uploadPhoto_ for the one-time GITHUB_TOKEN setup this needs on the backend side.
+// action 'uploadPhoto'), which saves it into a Drive folder that backend manages itself and hands
+// back a short "gsf:<fileId>" token (never a full URL — see saveDeptPhoto's byte-budget notes).
+// That token is saved exactly like a pasted link, so every other part of the topper-photo system
+// (getTopperPhoto, "Toppers of Munim", "Performer of Munim") treats an uploaded photo the same as
+// a pasted one, expanding it back into a real <img src> only at render time via
+// expandTopperPhotoUrl. Needs no setup on the backend side — no token, no third-party account.
 async function onTopperPhotosAdminFileChosen(deptId, rank, inputEl){
   const file = inputEl.files && inputEl.files[0];
   if(!file) return;
@@ -3537,8 +3553,8 @@ async function onTopperPhotosAdminFileChosen(deptId, rank, inputEl){
     const base64 = await fileToUploadPayload(file, 480);
     if(statusEl) statusEl.textContent = 'Uploading…';
     const result = await activityPostAwait({ action: 'uploadPhoto', data: base64, ext: 'jpg', email: currentUser ? currentUser.email : '' });
-    if(!result || !result.url) throw new Error('Upload finished but no photo URL came back.');
-    await saveDeptPhoto(deptId, munimToppersMonth, rank, result.url);
+    if(!result || !result.token) throw new Error('Upload finished but no photo came back.');
+    await saveDeptPhoto(deptId, munimToppersMonth, rank, result.token);
     renderTopperPhotosAdmin();
     if(munimToppersDept === deptId) renderMunimToppersPanel();
   } catch(err){
