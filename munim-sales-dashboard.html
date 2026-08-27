@@ -650,7 +650,7 @@
 
     <div class="card compare-card">
       <h3>🏆 Topper photos</h3>
-      <div class="card-sub">One photo per department per rank, for the month you pick below — since who's actually on top changes every month, each month keeps its own set of photos rather than sharing one fixed photo all year. Shown in the "Toppers of Munim" section everyone sees, for that same month. Paste a Google Drive/Photos share link (or any public image link) — there's no device-upload button here, since that needs a Google permission that broke sign-in for everyone the one time it was turned on; ask Amit before changing that.</div>
+      <div class="card-sub">One photo per department per rank, for the month you pick below — since who's actually on top changes every month, each month keeps its own set of photos rather than sharing one fixed photo all year. Shown in the "Toppers of Munim" and "Performer of Munim" sections everyone sees, for that same month. Use "📷 Upload from device" to pick a photo directly — it doesn't need any Google Drive permission, so it can't break sign-in the way the old upload button once did. You can still paste a Google Drive/Photos share link (or any public image link) instead if you'd rather.</div>
       <div class="range-picker">
         <label>Month
           <select id="topper-photos-admin-month" onchange="onTopperPhotosAdminMonthChange(this.value)"></select>
@@ -957,6 +957,20 @@ function activityPost(payload){
 async function activityGet(action, extra){
   const params = new URLSearchParams(Object.assign({ action: action, secret: ACTIVITY_SECRET }, extra || {}));
   const res = await fetch(ACTIVITY_BACKEND_URL + '?' + params.toString());
+  if(!res.ok) throw new Error('activity HTTP ' + res.status);
+  const data = await res.json();
+  if(data && data.error) throw new Error(data.error);
+  return data;
+}
+// Same backend, but awaited and rejecting on failure — unlike activityPost's fire-and-forget
+// (fine for presence/edit-log, where a dropped beat is harmless), a photo upload's caller needs
+// the resulting URL back (or a real error) before it can save anything.
+async function activityPostAwait(payload){
+  const res = await fetch(ACTIVITY_BACKEND_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(Object.assign({ secret: ACTIVITY_SECRET }, payload))
+  });
   if(!res.ok) throw new Error('activity HTTP ' + res.status);
   const data = await res.json();
   if(data && data.error) throw new Error(data.error);
@@ -3450,6 +3464,7 @@ function renderTopperPhotosAdmin(){
         <span class="topper-photo-rank">${badge.icon} ${badge.label}</span>
         <input type="text" id="tpa-link-${d.id}-${rank}" placeholder="Paste a Drive/Photos or image link" value="${current ? escapeHtml(current) : ''}">
         <button class="icon-btn" onclick="onTopperPhotosAdminSave('${d.id}', ${rank})">Save</button>
+        <label class="icon-btn tp-upload-btn">📷 Upload from device<input type="file" accept="image/*" style="display:none" onchange="onTopperPhotosAdminFileChosen('${d.id}', ${rank}, this)"></label>
         ${current ? `<button class="reset-link" onclick="onTopperPhotosAdminClear('${d.id}', ${rank})">Clear</button>` : ''}
         <span class="tp-upload-status" id="tpa-status-${d.id}-${rank}"></span>
       </div>`;
@@ -3477,6 +3492,59 @@ async function onTopperPhotosAdminSave(deptId, rank){
     if(munimToppersDept === deptId) renderMunimToppersPanel(); // keep the live section in sync if it's showing this same department/month right now
   } catch(err){
     if(statusEl) statusEl.textContent = describeAccessError(err, 'save this photo link');
+  }
+}
+// Reads a chosen image file, downscales/re-encodes it to a modest JPEG entirely client-side (a
+// topper photo is shown at ~84-128px, so there's no reason to ship a multi-MB original), and
+// hands back its base64 body (no "data:...;base64," prefix) ready to POST. This needs no Drive
+// permission at all — it's a plain browser File read — so it carries none of the OAuth-scope risk
+// the old device-upload path had.
+function fileToUploadPayload(file, maxDim){
+  return new Promise((resolve, reject) => {
+    if(!file.type || !file.type.startsWith('image/')){ reject(new Error('Please choose an image file.')); return; }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read that file.'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("That file doesn't look like a readable image."));
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+        const w = Math.max(1, Math.round(img.naturalWidth * scale));
+        const h = Math.max(1, Math.round(img.naturalHeight * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+// The "📷 Upload from device" control on each topper-photo row (see renderTopperPhotosAdmin) —
+// relays the chosen photo through the dashboard's own Apps Script backend (ACTIVITY_BACKEND_URL,
+// action 'uploadPhoto'), which pushes it to the same public GitHub Pages repo pasted links already
+// point at and hands back that public URL. Saves exactly like a pasted link once the URL is back,
+// so every other part of the topper-photo system (getTopperPhoto, "Toppers of Munim", "Performer
+// of Munim") treats an uploaded photo identically to a pasted one. See apps_script_backend.gs's
+// uploadPhoto_ for the one-time GITHUB_TOKEN setup this needs on the backend side.
+async function onTopperPhotosAdminFileChosen(deptId, rank, inputEl){
+  const file = inputEl.files && inputEl.files[0];
+  if(!file) return;
+  const statusEl = document.getElementById(`tpa-status-${deptId}-${rank}`);
+  try{
+    if(statusEl) statusEl.textContent = 'Preparing photo…';
+    const base64 = await fileToUploadPayload(file, 480);
+    if(statusEl) statusEl.textContent = 'Uploading…';
+    const result = await activityPostAwait({ action: 'uploadPhoto', data: base64, ext: 'jpg', email: currentUser ? currentUser.email : '' });
+    if(!result || !result.url) throw new Error('Upload finished but no photo URL came back.');
+    await saveDeptPhoto(deptId, munimToppersMonth, rank, result.url);
+    renderTopperPhotosAdmin();
+    if(munimToppersDept === deptId) renderMunimToppersPanel();
+  } catch(err){
+    if(statusEl) statusEl.textContent = (err && err.message) ? err.message : describeAccessError(err, 'upload this photo');
+  } finally {
+    inputEl.value = ''; // lets the same file be re-chosen later (e.g. after fixing an error)
   }
 }
 async function onTopperPhotosAdminClear(deptId, rank){
