@@ -1359,16 +1359,48 @@ function resolveDeptPhotoUrl(raw){
 // apps_script_backend.gs's uploadPhoto_) rather than a URL — a real serving URL for it would be
 // 90+ bytes before the file id even starts, which blows the ~81-124 byte budget the Drive
 // appProperties storage this all lives in enforces per saved value (see deptPhotoKey/saveDeptPhoto
-// above). This expands that token into an actual <img src> URL at render time, pointed at the
-// dashboard's own Apps Script backend (which serves the file back out — see servePhoto_ there).
-// Only used right before painting an <img>; the raw token is what's actually stored/round-tripped
-// through the "Topper photos" admin inputs, so re-saving an unchanged field never tries to write
-// back an oversized expanded URL.
-function expandTopperPhotoUrl(raw){
-  const s = (raw || '').trim();
-  if(!s) return '';
-  if(s.startsWith('gsf:')) return ACTIVITY_BACKEND_URL + '?photo=' + encodeURIComponent(s.slice(4));
-  return s;
+// above). Google Apps Script's web app doGet can't actually hand back raw image bytes with the
+// right Content-Type (returning a Blob directly from doGet reliably errors with "the returned
+// value is not a supported return type" — confirmed live), so a plain <img src="...backend
+// URL..."> never works for these. Instead the token is expanded into a real <img> only by
+// fetching its bytes as base64 JSON (action 'getPhoto', see apps_script_backend.gs's getPhoto_)
+// and setting the <img>'s src to a "data:" URI client-side — see hydrateGsfPhotos below. A plain
+// pasted Drive/Photos share link or any other public image URL (not a "gsf:" token) still works
+// exactly as a normal <img src> and skips all of this.
+function isGsfToken(raw){ return !!raw && raw.startsWith('gsf:'); }
+// In-memory only (never persisted) — keyed by the "gsf:<fileId>" token so every <img> showing the
+// same uploaded photo shares one fetch, and re-rendering a panel (which happens often: on every
+// data refresh, tab switch, month/department change) never re-fetches a photo it already has.
+const GSF_PHOTO_CACHE = {};
+const GSF_PHOTO_PENDING = {};
+async function fetchGsfPhotoDataUri(token){
+  if(GSF_PHOTO_CACHE[token]) return GSF_PHOTO_CACHE[token];
+  if(GSF_PHOTO_PENDING[token]) return GSF_PHOTO_PENDING[token];
+  const p = activityPostAwait({ action: 'getPhoto', token: token })
+    .then(res => {
+      const uri = 'data:' + (res.mimeType || 'image/jpeg') + ';base64,' + res.data;
+      GSF_PHOTO_CACHE[token] = uri;
+      delete GSF_PHOTO_PENDING[token];
+      return uri;
+    })
+    .catch(err => {
+      delete GSF_PHOTO_PENDING[token];
+      console.warn('[topper photo] fetch failed', err);
+      return '';
+    });
+  GSF_PHOTO_PENDING[token] = p;
+  return p;
+}
+// Call once right after painting any HTML that may contain <img data-gsf-token="gsf:..."> — fills
+// in each one's real src, from cache when already fetched, otherwise kicking off (and caching)
+// the fetch. Safe to call on a root with none of these <img> tags (no-op).
+function hydrateGsfPhotos(root){
+  (root || document).querySelectorAll('img[data-gsf-token]').forEach(img => {
+    const token = img.getAttribute('data-gsf-token');
+    if(!token) return;
+    if(GSF_PHOTO_CACHE[token]){ img.src = GSF_PHOTO_CACHE[token]; return; }
+    fetchGsfPhotoDataUri(token).then(uri => { if(uri) img.src = uri; });
+  });
 }
 async function saveDeptPhoto(deptId, monthKey, rank, url){
   await writeConfigProps({ [deptPhotoKey(deptId, monthKey, rank)]: url || null });
@@ -3320,7 +3352,9 @@ function renderMunimToppersPanel(monthKeyHint){
     const url = getTopperPhoto(munimToppersDept, monthKey, rank);
     const badge = RANK_BADGES[rank];
     const photoHtml = url
-      ? `<img class="tp-photo" src="${escapeHtml(expandTopperPhotoUrl(url))}" alt="${m ? escapeHtml(m.name) : ''}">`
+      ? (isGsfToken(url)
+          ? `<img class="tp-photo" data-gsf-token="${escapeHtml(url)}" alt="${m ? escapeHtml(m.name) : ''}">`
+          : `<img class="tp-photo" src="${escapeHtml(url)}" alt="${m ? escapeHtml(m.name) : ''}">`)
       : `<div class="tp-photo tp-photo-placeholder">${badge.icon}</div>`;
     const infoHtml = m
       ? `<div class="tp-name">${escapeHtml(m.name)}</div>
@@ -3338,6 +3372,7 @@ function renderMunimToppersPanel(monthKeyHint){
     <div class="card-sub">Top 3 by % Achievement for whichever department and month you pick below — independent of the Department tab above and the main month tabs, so anyone can check any allowed department's toppers for any month on file. ${isAdmin() ? 'Set photos from "⚙️ Manage Access" → "Topper photos".' : ''}</div>
     ${deptSelectHtml}
     <div class="top-performers-grid">${slotsHtml}</div>`;
+  hydrateGsfPhotos(el);
 }
 
 // ---------- "PERFORMER OF MUNIM" (dedicated tab, renderPerformerView) ----------
@@ -3417,7 +3452,9 @@ function renderPerformerView(){
       const url = getTopperPhoto(d.id, monthKey, rank);
       const badge = RANK_BADGES[rank];
       const photoHtml = url
-        ? `<img class="pf-photo" src="${escapeHtml(expandTopperPhotoUrl(url))}" alt="${m ? escapeHtml(m.name) : ''}">`
+        ? (isGsfToken(url)
+            ? `<img class="pf-photo" data-gsf-token="${escapeHtml(url)}" alt="${m ? escapeHtml(m.name) : ''}">`
+            : `<img class="pf-photo" src="${escapeHtml(url)}" alt="${m ? escapeHtml(m.name) : ''}">`)
         : `<div class="pf-photo-placeholder">${badge.icon}</div>`;
       return `<div class="pf-slot pf-rank-${rank}" style="--medal-bg:${badge.bg}; --medal-fg:${badge.fg};">
         <div class="pf-medal">${badge.icon}</div>
@@ -3441,6 +3478,7 @@ function renderPerformerView(){
       <button class="pf-arrow pf-arrow-right" onclick="onPerformerNext()" aria-label="Next department">›</button>
     </div>
     <div class="pf-dots" id="performer-dots">${dotsHtml}</div>`;
+  hydrateGsfPhotos(body);
   const stage = document.getElementById('performer-stage');
   if(stage){
     stage.onmouseenter = stopPerformerAutoplay;
@@ -3543,7 +3581,8 @@ function fileToUploadPayload(file, maxDim){
 // That token is saved exactly like a pasted link, so every other part of the topper-photo system
 // (getTopperPhoto, "Toppers of Munim", "Performer of Munim") treats an uploaded photo the same as
 // a pasted one, expanding it back into a real <img src> only at render time via
-// expandTopperPhotoUrl. Needs no setup on the backend side — no token, no third-party account.
+// hydrateGsfPhotos/fetchGsfPhotoDataUri. Needs no setup on the backend side — no token, no
+// third-party account.
 async function onTopperPhotosAdminFileChosen(deptId, rank, inputEl){
   const file = inputEl.files && inputEl.files[0];
   if(!file) return;
