@@ -1304,10 +1304,15 @@ function decodeDeptConfig(raw){
   const parts = (raw || '').split('|');
   return { masterSheetId: parts[1] || '', masterGid: parts[2] || '' };
 }
-// One appProperties key per department per rank slot (1/2/3) for the "Top Performers" photo
-// gallery — see the TOP PERFORMER PHOTOS section below. Deliberately a distinct prefix (checked
-// first, see applyDeptSheetConfigFromProps) even though 'dashDeptPhoto_' textually starts with
-// 'dashDept_' too — the two must never be confused for one another.
+// LEGACY READ-ONLY FORMAT — one appProperties key per department per month per rank slot (1/2/3)
+// for the "Top Performers" photo gallery. Nothing writes new keys in this shape any more (Drive
+// hard-caps a file to 30 appProperties per app, and this dashboard hit that cap for real — see
+// saveDeptPhoto's comment); new saves go through the Apps Script backend's own uncapped
+// "TopperPhotos" Sheet instead (setTopperPhoto_/getTopperPhotos_, merged in by
+// loadTopperPhotosFromBackend). This key builder is kept only so applyDeptSheetConfigFromProps can
+// still parse whatever was saved here before the migration — see the TOP PERFORMER PHOTOS section
+// below. Deliberately a distinct prefix (checked first, see applyDeptSheetConfigFromProps) even
+// though 'dashDeptPhoto_' textually starts with 'dashDept_' too — the two must never be confused.
 function deptPhotoKey(deptId, monthKey, rank){ return 'dashDeptPhoto_' + deptId + '_' + monthKey + '_' + rank; }
 // One appProperties key per card tier for the admin's dashboard-wide default field selection —
 // see "🧩 Default fields per role" under Manage Access and DEFAULT_TIER_FIELDS below.
@@ -1450,11 +1455,38 @@ function hydrateGsfPhotos(root){
     fetchGsfPhotoDataUri(token).then(uri => { if(uri) img.src = uri; });
   });
 }
+// Saves through the Apps Script backend's own "TopperPhotos" Sheet tab (setTopperPhoto_ in
+// apps_script_backend.gs), NOT Drive appProperties — Drive hard-caps a file to 30 appProperties
+// per app, and with 9 departments x 3 ranks x every month this dashboard has ever shown, that cap
+// was hit for real (propertyCountLimitExceeded), silently blocking every new photo save behind a
+// misleading "This account does not have permission for this request." error while old photos
+// kept displaying fine. A Sheet row has no such limit. Anything already saved under the old
+// Drive-appProperties scheme (see applyDeptSheetConfigFromProps) keeps working too — this never
+// deletes those keys, it just stops adding new ones — and loadTopperPhotosFromBackend() below
+// merges this Sheet's rows on top of them at load time, same as this function does in memory here.
 async function saveDeptPhoto(deptId, monthKey, rank, url){
-  await writeConfigProps({ [deptPhotoKey(deptId, monthKey, rank)]: url || null });
+  await activityPostAwait({ action: 'setTopperPhoto', deptId, monthKey, rank, token: url || '', email: currentUser ? currentUser.email : '' });
   if(!DEPT_PHOTOS_BY_MONTH[deptId]) DEPT_PHOTOS_BY_MONTH[deptId] = {};
   if(!DEPT_PHOTOS_BY_MONTH[deptId][monthKey]) DEPT_PHOTOS_BY_MONTH[deptId][monthKey] = {};
   if(url) DEPT_PHOTOS_BY_MONTH[deptId][monthKey][rank] = url; else delete DEPT_PHOTOS_BY_MONTH[deptId][monthKey][rank];
+}
+// One-time-per-load merge of the backend Sheet's dept/month/rank -> token rows on top of whatever
+// applyDeptSheetConfigFromProps just parsed out of Drive appProperties (old photos, pre-migration)
+// — see saveDeptPhoto's comment above for why new saves live here instead of Drive now. Never
+// fatal: if the backend is briefly unreachable, the dashboard just shows whatever Drive-legacy
+// photos it already has for this session instead of the merged set.
+async function loadTopperPhotosFromBackend(){
+  try{
+    const res = await activityGet('getTopperPhotos');
+    (res.rows || []).forEach(r => {
+      if(!r.deptId || !r.monthKey || !r.rank || !r.token) return;
+      if(!DEPT_PHOTOS_BY_MONTH[r.deptId]) DEPT_PHOTOS_BY_MONTH[r.deptId] = {};
+      if(!DEPT_PHOTOS_BY_MONTH[r.deptId][r.monthKey]) DEPT_PHOTOS_BY_MONTH[r.deptId][r.monthKey] = {};
+      DEPT_PHOTOS_BY_MONTH[r.deptId][r.monthKey][r.rank] = r.token;
+    });
+  } catch(err){
+    console.warn('[topper photos] backend load failed — showing whatever Drive-legacy photos are cached', err);
+  }
 }
 // Multipart Drive upload (metadata JSON part + base64 media part) — apiFetch isn't used for the
 // upload itself since it always sends JSON, but the follow-up permissions.create call below does
@@ -1598,6 +1630,7 @@ async function checkDashboardAccess(){
     if(!isAdminEmail) throw err;
   }
   applyDeptSheetConfigFromProps(props);
+  await loadTopperPhotosFromBackend(); // merges in the (uncapped) Sheet-backed photo store — see its own comment
   if(isAdminEmail){ userAllowedDepts = null; costFieldsAllowed = true; return true; }
   const hash = await hashEmail(email);
   const userKey = 'dashUser_' + hash;
