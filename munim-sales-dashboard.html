@@ -193,11 +193,13 @@
   /* "Performer of Munim" (renderTopperMunimView) — a company-wide tab, deliberately NEVER filtered
      by userAllowedDepts: every signed-in viewer sees every department's toppers here, regardless
      of which departments they're personally allowed into (the "Toppers of Munim" panel above
-     stays department-access-scoped; this tab deliberately is not). Organized by RANK rather than
-     department — slide 1 is Rank 1 across every department, slide 2 is Rank 2, slide 3 is Rank 3
-     — auto-advancing every 3s, with each slide keeping its own gold/silver/bronze identity (the
-     same RANK_BADGES colors used everywhere else) so the color change itself signals which rank
-     is on screen. */
+     stays department-access-scoped; this tab deliberately is not). One large hero photo per
+     slide — every (rank, department) that has BOTH a ranked person AND an uploaded photo becomes
+     its own slide (ordered Rank 1 across all depts, then Rank 2, then Rank 3); anyone ranked but
+     without a photo uploaded is left out of the slideshow entirely rather than showing a blank
+     placeholder. Auto-advances every few seconds, each slide keeping its own gold/silver/bronze
+     identity (the same RANK_BADGES colors used everywhere else) so the color change signals which
+     rank is on screen. */
   .tm-stage{ position:relative; display:flex; align-items:center; gap:12px; margin-top:4px; }
   .tm-viewport{
     flex:1; overflow:hidden; border-radius:24px; border:1px solid var(--border);
@@ -243,26 +245,21 @@
     background:rgba(255,255,255,.3);
   }
   [data-theme="dark"] .tm-slide-sub{ background:rgba(0,0,0,.24); }
-  .tm-grid{ position:relative; z-index:1; display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr)); gap:16px; max-width:980px; margin:0 auto; }
-  .tm-card{
-    background:rgba(255,255,255,0.6); border:1px solid rgba(255,255,255,0.6); border-radius:16px;
-    padding:16px 8px 14px; display:flex; flex-direction:column; align-items:center;
-    opacity:0; transform:translateY(16px) scale(.95); animation: tm-rise .55s cubic-bezier(.22,.9,.35,1) forwards;
-    animation-delay: var(--tm-card-delay, 0ms);
-    backdrop-filter: blur(3px); box-shadow:0 8px 20px -12px rgba(0,0,0,.3);
-    transition: transform .2s ease, box-shadow .2s ease;
+  /* One large "hero" photo per slide (instead of a small grid of every department at once) —
+     only performers who actually have a photo uploaded ever get a slide; anyone ranked but
+     without a photo is skipped entirely rather than showing a blank placeholder + name. */
+  .tm-hero{
+    position:relative; z-index:1; display:flex; flex-direction:column; align-items:center;
+    opacity:0; transform:translateY(18px) scale(.97); animation: tm-rise .6s cubic-bezier(.22,.9,.35,1) forwards;
   }
-  .tm-card:hover{ transform:translateY(-3px) scale(1.03); box-shadow:0 12px 26px -12px rgba(0,0,0,.4); }
-  [data-theme="dark"] .tm-card{ background:rgba(13,13,13,0.4); border-color:rgba(255,255,255,0.16); }
   @keyframes tm-rise{ to{ opacity:1; transform:translateY(0) scale(1); } }
-  .tm-photo, .tm-photo-placeholder{
-    width:68px; height:68px; border-radius:50%; object-fit:cover; display:block;
-    border:2.5px solid rgba(255,255,255,0.92); box-shadow:0 4px 14px rgba(0,0,0,0.22), 0 0 0 3px rgba(255,255,255,.2);
+  .tm-photo-hero{
+    width:min(48vw, 260px); height:min(48vw, 260px); border-radius:28px; object-fit:cover; display:block;
+    border:5px solid rgba(255,255,255,0.95); box-shadow:0 22px 44px -16px rgba(0,0,0,.45), 0 0 0 5px rgba(255,255,255,.22);
   }
-  .tm-photo-placeholder{ display:flex; align-items:center; justify-content:center; font-size:25px; background:rgba(255,255,255,0.42); color:inherit; }
-  .tm-card-name{ margin-top:9px; font-size:13px; font-weight:800; line-height:1.2; }
-  .tm-card-name.tm-empty{ opacity:.6; font-weight:600; font-style:italic; }
-  .tm-card-dept{ margin-top:3px; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; opacity:.72; }
+  .tm-hero-name{ margin-top:20px; font-size:27px; font-weight:800; line-height:1.15; letter-spacing:-.01em; text-shadow:0 2px 10px rgba(0,0,0,.12); }
+  .tm-hero-dept{ margin-top:6px; font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; opacity:.78; }
+  .tm-counter{ text-align:center; margin-top:10px; font-size:12px; font-weight:700; opacity:.6; letter-spacing:.02em; }
   .tm-arrow{
     flex:0 0 auto; width:38px; height:38px; border-radius:50%; border:1px solid var(--border);
     background:var(--surface-1); color:var(--text-secondary); font-size:20px; line-height:1; cursor:pointer;
@@ -276,22 +273,15 @@
   .tm-progress-fill{ height:100%; width:0%; border-radius:999px; background:var(--tm-rank-color, var(--series-1)); }
   .tm-progress-fill.running{ animation: tm-progress-run linear forwards; animation-duration: var(--tm-autoplay-ms, 3000ms); }
   @keyframes tm-progress-run{ from{ width:0%; } to{ width:100%; } }
-  .tm-dots{ display:flex; justify-content:center; gap:8px; margin-top:12px; }
-  .tm-dot{ width:9px; height:9px; border-radius:50%; border:none; background:var(--border); cursor:pointer; padding:0; transition:background .15s, width .15s, box-shadow .2s; }
-  .tm-dot.active{ width:26px; border-radius:5px; }
-  .tm-dot.tm-dot-1.active{ background:#caa022; box-shadow:0 0 0 4px rgba(202,160,34,.24); }
-  .tm-dot.tm-dot-2.active{ background:#8d99a6; box-shadow:0 0 0 4px rgba(141,153,166,.24); }
-  .tm-dot.tm-dot-3.active{ background:#a5673e; box-shadow:0 0 0 4px rgba(165,103,62,.24); }
   @media (max-width:700px){
-    .tm-grid{ grid-template-columns:repeat(auto-fit, minmax(96px, 1fr)); }
-    .tm-photo, .tm-photo-placeholder{ width:54px; height:54px; font-size:20px; }
+    .tm-photo-hero{ width:min(62vw, 190px); height:min(62vw, 190px); border-radius:22px; }
+    .tm-hero-name{ font-size:21px; }
     .tm-arrow{ width:32px; height:32px; font-size:16px; }
     .tm-slide-medal{ font-size:34px; }
     .tm-slide-title{ font-size:19px; }
   }
   @media (prefers-reduced-motion: reduce){
-    .tm-card{ animation:none; opacity:1; transform:none; }
-    .tm-card:hover{ transform:none; }
+    .tm-hero{ animation:none; opacity:1; transform:none; }
     .tm-slide-medal{ animation:none; }
     .tm-slide::after{ animation:none; display:none; }
     .tm-track{ transition:none; }
@@ -3461,21 +3451,23 @@ function topperMunimDeptOptions(){
   return DEPARTMENTS.filter(d => d.id !== 'QUALITY');
 }
 let topperMunimMonth = null;
-let topperMunimSlideIndex = 0; // 0 = Rank 1, 1 = Rank 2, 2 = Rank 3
+let topperMunimSlideIndex = 0; // index into topperMunimEntries (the flat, photo-only list below)
+let topperMunimEntries = []; // built fresh by renderTopperMunimView: one entry per (rank, dept) that has both a ranked person AND an uploaded photo
 let topperMunimAutoplayTimer = null;
-const TOPPER_MUNIM_AUTOPLAY_MS = 3000;
+const TOPPER_MUNIM_AUTOPLAY_MS = 4000; // a bit longer than the old 3s grid — one big photo deserves a beat longer on screen
 const TOPPER_MUNIM_RANKS = [1, 2, 3];
 function stopTopperMunimAutoplay(){
   if(topperMunimAutoplayTimer){ clearInterval(topperMunimAutoplayTimer); topperMunimAutoplayTimer = null; }
 }
 function startTopperMunimAutoplay(){
   stopTopperMunimAutoplay();
-  if(PERFORMER_PREFERS_REDUCED_MOTION) return; // still fully usable via the arrows/dots, just doesn't auto-advance
+  if(PERFORMER_PREFERS_REDUCED_MOTION) return; // still fully usable via the arrows, just doesn't auto-advance
+  if(topperMunimEntries.length < 2) return; // nothing to cycle to
   topperMunimAutoplayTimer = setInterval(() => goToTopperMunimSlide(topperMunimSlideIndex + 1), TOPPER_MUNIM_AUTOPLAY_MS);
 }
 // Applies the current slide's rank color to the viewport glow + progress-bar fill (both read
 // these as CSS custom properties — see .tm-viewport/.tm-progress-fill) and (re)starts the
-// progress bar's countdown animation, so manual nav (prev/next/dot) resets the countdown exactly
+// progress bar's countdown animation, so manual nav (prev/next) resets the countdown exactly
 // like autoplay advancing on its own does.
 function applyTopperMunimRankChrome(){
   // Set on #topper-munim-body (the common ancestor of both the viewport and the progress bar)
@@ -3483,11 +3475,12 @@ function applyTopperMunimRankChrome(){
   // viewport is a descendant of the stage, but .tm-progress is only a sibling of it.
   const body = document.getElementById('topper-munim-body');
   const fill = document.getElementById('topper-munim-progress-fill');
-  const rank = TOPPER_MUNIM_RANKS[topperMunimSlideIndex];
-  const rgb = hexToRgbTriplet(RANK_BADGES[rank].bg);
+  const entry = topperMunimEntries[topperMunimSlideIndex];
+  if(!entry) return;
+  const rgb = hexToRgbTriplet(RANK_BADGES[entry.rank].bg);
   if(body){
     body.style.setProperty('--tm-rank-glow', `rgba(${rgb},.45)`);
-    body.style.setProperty('--tm-rank-color', RANK_BADGES[rank].bg);
+    body.style.setProperty('--tm-rank-color', RANK_BADGES[entry.rank].bg);
   }
   if(fill){
     fill.style.setProperty('--tm-autoplay-ms', `${TOPPER_MUNIM_AUTOPLAY_MS}ms`);
@@ -3495,19 +3488,21 @@ function applyTopperMunimRankChrome(){
     // restart from scratch instead of the browser treating it as a no-op class toggle.
     fill.classList.remove('running');
     void fill.offsetWidth;
-    if(!PERFORMER_PREFERS_REDUCED_MOTION) fill.classList.add('running');
+    if(!PERFORMER_PREFERS_REDUCED_MOTION && topperMunimEntries.length > 1) fill.classList.add('running');
   }
 }
 function goToTopperMunimSlide(i){
-  topperMunimSlideIndex = ((i % 3) + 3) % 3;
+  if(!topperMunimEntries.length) return;
+  const n = topperMunimEntries.length;
+  topperMunimSlideIndex = ((i % n) + n) % n;
   const track = document.getElementById('topper-munim-track');
   if(track) track.style.transform = `translateX(-${topperMunimSlideIndex * 100}%)`;
-  document.querySelectorAll('#topper-munim-dots .tm-dot').forEach((d, idx) => d.classList.toggle('active', idx === topperMunimSlideIndex));
+  const counter = document.getElementById('topper-munim-counter');
+  if(counter) counter.textContent = `${topperMunimSlideIndex + 1} / ${n}`;
   applyTopperMunimRankChrome();
 }
 function onTopperMunimPrev(){ stopTopperMunimAutoplay(); goToTopperMunimSlide(topperMunimSlideIndex - 1); startTopperMunimAutoplay(); }
 function onTopperMunimNext(){ stopTopperMunimAutoplay(); goToTopperMunimSlide(topperMunimSlideIndex + 1); startTopperMunimAutoplay(); }
-function onTopperMunimDot(i){ stopTopperMunimAutoplay(); goToTopperMunimSlide(i); startTopperMunimAutoplay(); }
 function onTopperMunimMonthChange(monthKey){
   topperMunimMonth = monthKey;
   topperMunimSlideIndex = 0;
@@ -3535,54 +3530,61 @@ function renderTopperMunimView(){
     return;
   }
   const monthKey = topperMunimMonth;
-  const slidesHtml = TOPPER_MUNIM_RANKS.map(rank => {
-    const badge = RANK_BADGES[rank];
-    const cardsHtml = depts.map((d, i) => {
+  // Flatten to one entry per (rank, dept) — but ONLY when there's both a ranked person and an
+  // uploaded photo for them. Anyone ranked without a photo is skipped entirely: no blank
+  // placeholder, no name shown, per how this slideshow is meant to read (photo-led, not a roster).
+  topperMunimEntries = [];
+  TOPPER_MUNIM_RANKS.forEach(rank => {
+    depts.forEach(d => {
       const ranks = computeMonthlyRanksForDept(monthKey, d.id);
       let name = null;
       ranks.forEach((r, n) => { if(r === rank) name = n; });
-      const rows = (SHARED_SALES_DATA[monthKey] && SHARED_SALES_DATA[monthKey].byDept[d.id]) || [];
-      const m = name ? rows.find(x => x.name === name) : null;
+      if(!name) return; // no one ranked at this position for this dept
       const url = getTopperPhoto(d.id, monthKey, rank);
-      const photoHtml = url
-        ? (isGsfToken(url)
-            ? `<img class="tm-photo" data-gsf-token="${escapeHtml(url)}" alt="${m ? escapeHtml(m.name) : ''}">`
-            : `<img class="tm-photo" src="${escapeHtml(url)}" alt="${m ? escapeHtml(m.name) : ''}">`)
-        : `<div class="tm-photo-placeholder">${badge.icon}</div>`;
-      // Staggered entrance: each card's rise-in animation starts a little later than the one
-      // before it (see .tm-card's animation-delay: var(--tm-card-delay)), so the grid cascades
-      // into place left-to-right/row-by-row instead of every card popping in at once.
-      return `<div class="tm-card" style="--tm-card-delay:${i * 55}ms;">
-        ${photoHtml}
-        <div class="tm-card-name${m ? '' : ' tm-empty'}">${m ? escapeHtml(m.name) : 'No one ranked yet'}</div>
-        <div class="tm-card-dept">${escapeHtml(d.name)}</div>
-      </div>`;
-    }).join('');
-    return `<div class="tm-slide tm-slide-${rank}">
+      if(!url) return; // no photo uploaded — leave this performer out of the slideshow
+      topperMunimEntries.push({ rank, dept: d, name, photoUrl: url });
+    });
+  });
+  if(topperMunimSlideIndex >= topperMunimEntries.length) topperMunimSlideIndex = 0;
+  if(!topperMunimEntries.length){
+    body.innerHTML = `<div class="card compare-card"><div class="card-sub" style="margin:0;">No performer photos uploaded yet for ${escapeHtml(SHARED_SALES_DATA[monthKey].label)}.${isAdmin() ? ' Add some under "⚙️ Manage Access" → "Topper photos".' : ''}</div></div>`;
+    stopTopperMunimAutoplay();
+    return;
+  }
+  const slidesHtml = topperMunimEntries.map(e => {
+    const badge = RANK_BADGES[e.rank];
+    const photoHtml = isGsfToken(e.photoUrl)
+      ? `<img class="tm-photo-hero" data-gsf-token="${escapeHtml(e.photoUrl)}" alt="${escapeHtml(e.name)}">`
+      : `<img class="tm-photo-hero" src="${escapeHtml(e.photoUrl)}" alt="${escapeHtml(e.name)}">`;
+    return `<div class="tm-slide tm-slide-${e.rank}">
       <div class="tm-slide-head">
         <span class="tm-slide-medal">${badge.icon}</span>
         <div class="tm-slide-title">${escapeHtml(badge.label)}</div>
-        <div class="tm-slide-sub">Every department · ${escapeHtml(SHARED_SALES_DATA[monthKey].label)}</div>
+        <div class="tm-slide-sub">${escapeHtml(SHARED_SALES_DATA[monthKey].label)}</div>
       </div>
-      <div class="tm-grid">${cardsHtml}</div>
+      <div class="tm-hero">
+        ${photoHtml}
+        <div class="tm-hero-name">${escapeHtml(e.name)}</div>
+        <div class="tm-hero-dept">${escapeHtml(e.dept.name)}</div>
+      </div>
     </div>`;
   }).join('');
-  const dotsHtml = TOPPER_MUNIM_RANKS.map((rank, i) => `<button class="tm-dot tm-dot-${rank} ${i === topperMunimSlideIndex ? 'active' : ''}" onclick="onTopperMunimDot(${i})" aria-label="${escapeHtml(RANK_BADGES[rank].label)}"></button>`).join('');
+  const multi = topperMunimEntries.length > 1;
   body.innerHTML = `
     <div class="tm-stage" id="topper-munim-stage">
-      <button class="tm-arrow tm-arrow-left" onclick="onTopperMunimPrev()" aria-label="Previous rank">‹</button>
+      <button class="tm-arrow tm-arrow-left" onclick="onTopperMunimPrev()" aria-label="Previous performer" ${multi ? '' : 'style="visibility:hidden"'}>‹</button>
       <div class="tm-viewport">
         <div class="tm-track" id="topper-munim-track" style="transform:translateX(-${topperMunimSlideIndex * 100}%);">${slidesHtml}</div>
       </div>
-      <button class="tm-arrow tm-arrow-right" onclick="onTopperMunimNext()" aria-label="Next rank">›</button>
+      <button class="tm-arrow tm-arrow-right" onclick="onTopperMunimNext()" aria-label="Next performer" ${multi ? '' : 'style="visibility:hidden"'}>›</button>
     </div>
     <div class="tm-progress"><div class="tm-progress-fill" id="topper-munim-progress-fill"></div></div>
-    <div class="tm-dots" id="topper-munim-dots">${dotsHtml}</div>`;
+    ${multi ? `<div class="tm-counter" id="topper-munim-counter">${topperMunimSlideIndex + 1} / ${topperMunimEntries.length}</div>` : ''}`;
   hydrateGsfPhotos(body);
   const stage = document.getElementById('topper-munim-stage');
   if(stage){
     // Hovering pauses the countdown bar right along with the autoplay timer it mirrors; leaving
-    // restarts both fresh (a full new TOPPER_MUNIM_AUTOPLAY_MS), same as a manual prev/next/dot.
+    // restarts both fresh (a full new TOPPER_MUNIM_AUTOPLAY_MS), same as a manual prev/next.
     stage.onmouseenter = () => {
       stopTopperMunimAutoplay();
       const fill = document.getElementById('topper-munim-progress-fill');
