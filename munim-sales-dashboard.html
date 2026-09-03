@@ -260,6 +260,59 @@
   .tm-hero-name{ margin-top:20px; font-size:27px; font-weight:800; line-height:1.15; letter-spacing:-.01em; text-shadow:0 2px 10px rgba(0,0,0,.12); }
   .tm-hero-dept{ margin-top:6px; font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; opacity:.78; }
   .tm-counter{ text-align:center; margin-top:10px; font-size:12px; font-weight:700; opacity:.6; letter-spacing:.02em; }
+
+  /* Rank-tiered celebration "blast" — replayed each time a slide becomes the active one (see
+     playTopperMunimBlast in JS, which toggles .tm-blast-go on the slide, forcing a reflow so the
+     one-shot animations restart from scratch instead of just sitting at their finished state).
+     Deliberately scaled by rank so the celebration itself signals the ranking, not just the medal
+     color: Rank 1 gets a full confetti burst + shockwave ring, Rank 2 a calmer sparkle + soft
+     glow, Rank 3 a few quiet twinkles — biggest, most valuable moment for Top Performer, tapering
+     down to a modest one for 3rd. The congratulatory badge text stays visible even under
+     reduced-motion (only the motion itself is suppressed); the confetti/twinkle/ring pieces start
+     at opacity:0 and are ONLY ever revealed by the .tm-blast-go animations below, so reduced-motion
+     — which never adds that class — naturally leaves them invisible without needing its own rules. */
+  .tm-photo-wrap{ position:relative; display:inline-block; line-height:0; }
+  .tm-confetti{ position:absolute; inset:0; z-index:2; pointer-events:none; overflow:visible; }
+  .tm-confetti i{ position:absolute; opacity:0; font-style:normal; }
+  .tm-hero-badge{
+    margin-top:14px; display:inline-block; font-size:14.5px; font-weight:800; padding:6px 18px;
+    border-radius:999px; background:rgba(255,255,255,.38); text-shadow:0 1px 6px rgba(0,0,0,.1);
+  }
+  [data-theme="dark"] .tm-hero-badge{ background:rgba(0,0,0,.3); }
+  .tm-slide.tm-blast-go .tm-hero-badge{ animation: tm-badge-pop .55s cubic-bezier(.34,1.56,.64,1) .1s both; }
+  @keyframes tm-badge-pop{ 0%{ transform:scale(.82) translateY(6px); opacity:.35; } 65%{ transform:scale(1.07) translateY(0); } 100%{ transform:scale(1) translateY(0); opacity:1; } }
+
+  /* Rank 1 (gold) — falling confetti strips + an expanding shockwave ring around the photo. */
+  .tm-piece-fall{ top:-8%; left:50%; width:6px; height:13px; border-radius:1px; background:var(--c,#caa022); }
+  .tm-slide.tm-blast-go .tm-piece-fall{
+    animation: tm-confetti-fall 1.9s cubic-bezier(.24,.66,.32,1) forwards;
+    animation-delay: var(--delay,0s);
+  }
+  @keyframes tm-confetti-fall{
+    0%{ opacity:0; transform:translate(-50%,0) rotate(0deg); }
+    10%{ opacity:1; }
+    100%{ opacity:0; transform:translate(calc(-50% + var(--x,0px)),165px) rotate(var(--rot,360deg)); }
+  }
+  .tm-blast-ring{ position:absolute; inset:-6%; border-radius:50%; opacity:0; border:3px solid rgba(255,255,255,.9); box-shadow:0 0 22px rgba(202,160,34,.5); }
+  .tm-slide.tm-blast-go .tm-blast-ring{ animation: tm-blast-ring-pulse 1.15s ease-out forwards; }
+  @keyframes tm-blast-ring-pulse{ 0%{ opacity:.95; transform:scale(.7); } 65%{ opacity:.4; } 100%{ opacity:0; transform:scale(1.55); } }
+
+  /* Rank 2 (silver) — a handful of sparkle twinkles ringing the photo + one soft glow pulse
+     (no falling motion, no shockwave — a calmer, clearly smaller moment than Rank 1's). */
+  .tm-piece-twinkle{ font-size:var(--s,14px); line-height:1; text-shadow:0 0 6px rgba(0,0,0,.22); }
+  .tm-slide.tm-blast-go .tm-piece-twinkle{
+    animation: tm-twinkle 1.7s ease-in-out forwards;
+    animation-delay: var(--delay,0s);
+  }
+  @keyframes tm-twinkle{
+    0%{ opacity:0; transform:scale(.4) rotate(0deg); }
+    35%{ opacity:1; transform:scale(1.15) rotate(14deg); }
+    70%{ opacity:.8; transform:scale(.9) rotate(-8deg); }
+    100%{ opacity:0; transform:scale(.5) rotate(0deg); }
+  }
+  .tm-glow-ring{ position:absolute; inset:-14%; border-radius:50%; opacity:0; background:radial-gradient(circle, rgba(233,238,241,.6) 0%, rgba(233,238,241,0) 70%); }
+  .tm-slide.tm-blast-go .tm-glow-ring{ animation: tm-glow-pulse 1.3s ease-out forwards; }
+  @keyframes tm-glow-pulse{ 0%{ opacity:0; transform:scale(.75); } 40%{ opacity:1; transform:scale(1); } 100%{ opacity:0; transform:scale(1.15); } }
   .tm-arrow{
     flex:0 0 auto; width:38px; height:38px; border-radius:50%; border:1px solid var(--border);
     background:var(--surface-1); color:var(--text-secondary); font-size:20px; line-height:1; cursor:pointer;
@@ -279,6 +332,12 @@
     .tm-arrow{ width:32px; height:32px; font-size:16px; }
     .tm-slide-medal{ font-size:34px; }
     .tm-slide-title{ font-size:19px; }
+    .tm-piece-fall{ width:5px; height:11px; }
+    @keyframes tm-confetti-fall{
+      0%{ opacity:0; transform:translate(-50%,0) rotate(0deg); }
+      10%{ opacity:1; }
+      100%{ opacity:0; transform:translate(calc(-50% + calc(var(--x,0px) * .7)),120px) rotate(var(--rot,360deg)); }
+    }
   }
   @media (prefers-reduced-motion: reduce){
     .tm-hero{ animation:none; opacity:1; transform:none; }
@@ -3500,6 +3559,58 @@ function goToTopperMunimSlide(i){
   const counter = document.getElementById('topper-munim-counter');
   if(counter) counter.textContent = `${topperMunimSlideIndex + 1} / ${n}`;
   applyTopperMunimRankChrome();
+  playTopperMunimBlast();
+}
+// Restarts the rank-tiered confetti/twinkle/badge animations (see the .tm-blast-go CSS rules) on
+// whichever slide is now active. Toggling the class off, forcing a reflow, then back on is what
+// makes a one-shot CSS animation replay instead of staying frozen at its already-finished state —
+// same trick already used for the progress bar in applyTopperMunimRankChrome.
+function playTopperMunimBlast(){
+  if(PERFORMER_PREFERS_REDUCED_MOTION) return;
+  const track = document.getElementById('topper-munim-track');
+  const slide = track && track.children[topperMunimSlideIndex];
+  if(!slide) return;
+  slide.classList.remove('tm-blast-go');
+  void slide.offsetWidth;
+  slide.classList.add('tm-blast-go');
+}
+// Rank 1: a real confetti burst — falling gold/cream strips, staggered timing and drift so they
+// don't all fall in lockstep. Rank 2 and Rank 3 use tmTwinklePieces instead (see below) — a
+// scattered ring of sparkle glyphs around the photo rather than falling pieces, so Rank 1 reads as
+// a visibly different (bigger) kind of celebration, not just "the same effect with more pieces."
+function tmConfettiPieces(n){
+  const colors = ['#f4d675','#caa022','#fff6da','#ffffff','#e8b84b'];
+  let html = '';
+  for(let i = 0; i < n; i++){
+    const x = Math.round((Math.random() - 0.5) * 130);
+    const rot = Math.round(200 + Math.random() * 420);
+    const delay = (Math.random() * 0.5).toFixed(2);
+    html += `<i class="tm-piece-fall" style="--x:${x}px;--rot:${rot}deg;--delay:${delay}s;--c:${colors[i % colors.length]}"></i>`;
+  }
+  return html;
+}
+// Scatters n star glyphs in a ring around the photo (roughly at its edge, some drifting just
+// outside it) that each twinkle in and fade — used for Rank 2 (more, bigger) and Rank 3 (fewer,
+// smaller), so the two still read as clearly different in scale even though they share a motion.
+function tmTwinklePieces(n, size, colors){
+  let html = '';
+  for(let i = 0; i < n; i++){
+    const angle = (i / n) * Math.PI * 2 + Math.random() * 0.4;
+    const radius = 46 + Math.random() * 16;
+    const x = (50 + Math.cos(angle) * radius).toFixed(1);
+    const y = (50 + Math.sin(angle) * radius).toFixed(1);
+    const delay = (Math.random() * 0.7).toFixed(2);
+    const s = size + Math.round(Math.random() * 4);
+    html += `<i class="tm-piece-twinkle" style="left:${x}%;top:${y}%;--delay:${delay}s;--s:${s}px;color:${colors[i % colors.length]}">✦</i>`;
+  }
+  return html;
+}
+const TOPPER_MUNIM_BADGE_TEXT = { 1: '🎉 Congratulations, Top Performer!', 2: '⭐ Excellent Work!', 3: '✨ Well Done!' };
+// The rank-specific overlay markup laid inside .tm-photo-wrap, on top of the photo itself.
+function tmBlastHtml(rank){
+  if(rank === 1) return `<div class="tm-blast-ring"></div>${tmConfettiPieces(22)}`;
+  if(rank === 2) return `<div class="tm-glow-ring"></div>${tmTwinklePieces(10, 15, ['#e6eaed','#ffffff','#b9c2cc'])}`;
+  return tmTwinklePieces(5, 11, ['#e0a877','#c98a5e','#fff1e4']);
 }
 function onTopperMunimPrev(){ stopTopperMunimAutoplay(); goToTopperMunimSlide(topperMunimSlideIndex - 1); startTopperMunimAutoplay(); }
 function onTopperMunimNext(){ stopTopperMunimAutoplay(); goToTopperMunimSlide(topperMunimSlideIndex + 1); startTopperMunimAutoplay(); }
@@ -3563,7 +3674,11 @@ function renderTopperMunimView(){
         <div class="tm-slide-sub">${escapeHtml(SHARED_SALES_DATA[monthKey].label)}</div>
       </div>
       <div class="tm-hero">
-        ${photoHtml}
+        <div class="tm-photo-wrap">
+          ${photoHtml}
+          <div class="tm-confetti tm-blast-${e.rank}">${tmBlastHtml(e.rank)}</div>
+        </div>
+        <div class="tm-hero-badge">${TOPPER_MUNIM_BADGE_TEXT[e.rank]}</div>
         <div class="tm-hero-name">${escapeHtml(e.name)}</div>
         <div class="tm-hero-dept">${escapeHtml(e.dept.name)}</div>
       </div>
@@ -3593,6 +3708,7 @@ function renderTopperMunimView(){
     stage.onmouseleave = () => { startTopperMunimAutoplay(); applyTopperMunimRankChrome(); };
   }
   applyTopperMunimRankChrome();
+  playTopperMunimBlast();
   startTopperMunimAutoplay();
 }
 
