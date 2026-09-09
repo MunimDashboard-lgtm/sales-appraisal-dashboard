@@ -5023,7 +5023,14 @@ function renderMonthTabs(){
   ).join('')
     + (MONTH_TABS.length > 1 && currentDept !== 'QUALITY' ? `<button data-view="compare" class="${currentView==='compare'?'active':''}">Comparison</button>` : '')
     + (allowedDepartments().length > 1 ? `<button data-view="company" class="${currentView==='company'?'active':''}">🏢 Company View</button>` : '')
-    + (munimToppersMonthOptions().length ? `<button data-view="topper-munim" class="${currentView==='topper-munim'?'active':''}">🏆 Performer of Munim</button>` : '')
+    // "Performer of Munim" tab: always shown to every signed-in dashboard user, unconditionally —
+    // no department-access gate, no data-availability gate. It used to be hidden here whenever
+    // munimToppersMonthOptions() was empty (no Sales Data loaded yet), but that could make the tab
+    // vanish entirely for a freshly-granted person depending on load timing, which is exactly what
+    // this button must never do — renderTopperMunimView() already renders its own friendly
+    // "No month has any Sales Data yet." message when there's nothing to show yet, so the button
+    // itself never needs a matching guard.
+    + `<button data-view="topper-munim" class="${currentView==='topper-munim'?'active':''}">🏆 Performer of Munim</button>`
     + (isAdmin() ? `<button data-view="access" class="${currentView==='access'?'active':''}">⚙️ Manage Access</button>` : '')
     + (isAdmin() ? `<button data-view="depts" class="${currentView==='depts'?'active':''}">⚙️ Manage Departments</button>` : '')
     + (isAdmin() ? `<button data-view="presence" class="${currentView==='presence'?'active':''}">🟢 Who's Online</button>` : '')
