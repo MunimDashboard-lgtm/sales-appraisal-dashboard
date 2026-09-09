@@ -1524,18 +1524,105 @@ async function saveDeptPhoto(deptId, monthKey, rank, url){
 // — see saveDeptPhoto's comment above for why new saves live here instead of Drive now. Never
 // fatal: if the backend is briefly unreachable, the dashboard just shows whatever Drive-legacy
 // photos it already has for this session instead of the merged set.
+// Reserved deptId/monthKey/rank this app uses to smuggle the "who ranked #1/2/3, which month"
+// roster through the SAME TopperPhotos backend sheet as an ordinary-looking row — the backend
+// only ever stores/returns deptId/monthKey/rank/token verbatim (it drops any other field we send,
+// confirmed by hand before building this), so a real department id would collide with a real
+// photo row, but this string never will (topperMunimDeptOptions()/DEPARTMENTS never produce it).
+// See computeTopperRankSnapshot/syncTopperRankSnapshotToBackend/performerMunimMonthOptions below —
+// together these let "Performer of Munim" show months + names to a viewer whose Google account
+// was never given direct Sheets access to the Sales Data Sheet (only the dashboard's own Manage
+// Access list, which is deliberately separate from real Sheets sharing — see the note on that tab).
+const TOPPER_RANK_SNAPSHOT_KEY = { deptId: '__RANKS_SNAPSHOT__', monthKey: '__ALL__', rank: 'snapshot' };
+// { monthMeta: { [monthKey]: {label, sortKey} }, ranks: { [monthKey]: { [deptId]: {1:name,2:name,3:name} } } }
+// — whatever an admin session last published. Empty until loadTopperPhotosFromBackend runs once.
+let TOPPER_RANK_SNAPSHOT = { monthMeta: {}, ranks: {} };
+let topperRankSnapshotSyncedJson = null; // last snapshot JSON this session has actually POSTed — skip re-POSTing an unchanged snapshot
 async function loadTopperPhotosFromBackend(){
   try{
     const res = await activityGet('getTopperPhotos');
     (res.rows || []).forEach(r => {
       if(!r.deptId || !r.monthKey || !r.rank || !r.token) return;
+      if(r.deptId === TOPPER_RANK_SNAPSHOT_KEY.deptId){
+        try{ TOPPER_RANK_SNAPSHOT = JSON.parse(r.token) || { monthMeta: {}, ranks: {} }; }
+        catch(e){ console.warn('[topper ranks] snapshot row was not valid JSON — ignoring', e); }
+        return; // never let this synthetic row land in DEPT_PHOTOS_BY_MONTH (no real dept reads this id)
+      }
       if(!DEPT_PHOTOS_BY_MONTH[r.deptId]) DEPT_PHOTOS_BY_MONTH[r.deptId] = {};
       if(!DEPT_PHOTOS_BY_MONTH[r.deptId][r.monthKey]) DEPT_PHOTOS_BY_MONTH[r.deptId][r.monthKey] = {};
       DEPT_PHOTOS_BY_MONTH[r.deptId][r.monthKey][r.rank] = r.token;
     });
+    topperRankSnapshotSyncedJson = JSON.stringify(TOPPER_RANK_SNAPSHOT);
   } catch(err){
     console.warn('[topper photos] backend load failed — showing whatever Drive-legacy photos are cached', err);
   }
+}
+// Builds this session's view of "who ranked #1/2/3 in every department, for every month the Sales
+// Data Sheet currently has" — only meaningful when SHARED_SALES_DATA actually loaded (i.e. this
+// viewer's Google account does have Sheets access), which is exactly why only that kind of session
+// publishes it (see syncTopperRankSnapshotToBackend / its isAdmin() gate at the call site).
+function computeTopperRankSnapshot(){
+  const snapshot = { monthMeta: {}, ranks: {} };
+  Object.keys(SHARED_SALES_DATA).forEach(monthKey => {
+    snapshot.monthMeta[monthKey] = { label: SHARED_SALES_DATA[monthKey].label, sortKey: SHARED_SALES_DATA[monthKey].sortKey };
+    const byDept = {};
+    topperMunimDeptOptions().forEach(d => {
+      const ranks = computeMonthlyRanksForDept(monthKey, d.id);
+      if(!ranks.size) return;
+      const byRank = {};
+      ranks.forEach((r, name) => { byRank[r] = name; });
+      byDept[d.id] = byRank;
+    });
+    if(Object.keys(byDept).length) snapshot.ranks[monthKey] = byDept;
+  });
+  return snapshot;
+}
+// Publishes the current rank snapshot to the backend so every signed-in viewer can see "Performer
+// of Munim" months + names regardless of their own Sheets access — called after a successful
+// refreshAllFromSheet() (see its tail below), gated to isAdmin() so only the one account that's
+// always expected to have full Sheets access keeps this published, not every viewer racing to
+// re-publish the same data. Skips the network call entirely when nothing has actually changed
+// since the last publish this session made (or since load, if this session hasn't published yet).
+async function syncTopperRankSnapshotToBackend(){
+  if(!isAdmin()) return;
+  try{
+    const snapshot = computeTopperRankSnapshot();
+    const json = JSON.stringify(snapshot);
+    if(json === topperRankSnapshotSyncedJson) return; // unchanged — don't re-POST
+    await activityPostAwait({
+      action: 'setTopperPhoto',
+      deptId: TOPPER_RANK_SNAPSHOT_KEY.deptId,
+      monthKey: TOPPER_RANK_SNAPSHOT_KEY.monthKey,
+      rank: TOPPER_RANK_SNAPSHOT_KEY.rank,
+      token: json
+    });
+    TOPPER_RANK_SNAPSHOT = snapshot;
+    topperRankSnapshotSyncedJson = json;
+  } catch(err){
+    console.warn('[topper ranks] snapshot publish failed', err);
+  }
+}
+// The month list "Performer of Munim" offers: whatever THIS viewer's own Sheets access already
+// shows (live, most current) union whatever an admin session last published to the backend (so a
+// viewer with no Sheets access still sees every month that's ever been published) — live wins on
+// the label/sortKey to display when both sources happen to know the same month.
+function performerMunimMonthOptions(){
+  const merged = {};
+  Object.keys(TOPPER_RANK_SNAPSHOT.monthMeta).forEach(mk => { merged[mk] = TOPPER_RANK_SNAPSHOT.monthMeta[mk]; });
+  Object.keys(SHARED_SALES_DATA).forEach(mk => { merged[mk] = { label: SHARED_SALES_DATA[mk].label, sortKey: SHARED_SALES_DATA[mk].sortKey }; });
+  return Object.keys(merged).map(mk => Object.assign({ key: mk }, merged[mk])).sort((a,b) => a.sortKey - b.sortKey);
+}
+// Who ranked `rank` in `deptId` for `monthKey`, for "Performer of Munim" specifically: prefer this
+// viewer's own live Sheets computation when it has an answer, otherwise fall back to whatever an
+// admin session last published to the backend — so the name still shows even when this viewer's
+// Google account has no direct access to the Sales Data Sheet.
+function performerMunimNameFor(monthKey, deptId, rank){
+  const liveRanks = computeMonthlyRanksForDept(monthKey, deptId);
+  let name = null;
+  liveRanks.forEach((r, n) => { if(r === rank) name = n; });
+  if(name) return name;
+  const published = TOPPER_RANK_SNAPSHOT.ranks[monthKey] && TOPPER_RANK_SNAPSHOT.ranks[monthKey][deptId];
+  return (published && published[rank]) || null;
 }
 // Multipart Drive upload (metadata JSON part + base64 media part) — apiFetch isn't used for the
 // upload itself since it always sends JSON, but the follow-up permissions.create call below does
@@ -2582,6 +2669,10 @@ async function refreshAllFromSheet(showAlertOnFail){
       MONTHS[t.key] = { label: t.label, managers };
       ORIGINAL_MONTHS[t.key] = { label: t.label, managers: JSON.parse(JSON.stringify(managers)) };
     });
+    // Fire-and-forget: republish "who ranked #1/2/3 this month" to the backend so "Performer of
+    // Munim" keeps working for viewers whose Google account has no direct Sheets access (see
+    // syncTopperRankSnapshotToBackend's own comment). Never awaited — must not delay this refresh.
+    syncTopperRankSnapshotToBackend();
   }
   const masterOk = await refreshMasterData();
   recomputePrevBdesChain();
@@ -2601,6 +2692,7 @@ async function refreshAllFromSheet(showAlertOnFail){
   renderDataStatus();
   if(currentView === 'month') renderMonthView(currentMonth);
   else if(currentView === 'compare') renderCompareView();
+  else if(currentView === 'topper-munim') renderTopperMunimView();
 }
 
 function renderDataStatus(){
@@ -3623,17 +3715,21 @@ function renderTopperMunimView(){
   const monthSel = document.getElementById('topper-munim-month');
   const body = document.getElementById('topper-munim-body');
   if(!monthSel || !body) return;
-  const monthOptions = munimToppersMonthOptions();
+  // performerMunimMonthOptions() — unlike the admin-only munimToppersMonthOptions() — merges in
+  // whatever an admin session last published to the backend, so this list (and everything below
+  // that depends on monthKey) still works for a viewer whose Google account has no direct Sheets
+  // access to the Sales Data Sheet. See performerMunimMonthOptions/performerMunimNameFor above.
+  const monthOptions = performerMunimMonthOptions();
   if(!monthOptions.length){
     monthSel.innerHTML = '';
-    body.innerHTML = '<div class="card compare-card"><div class="card-sub" style="margin:0;">No month has any Sales Data yet.</div></div>';
+    body.innerHTML = '<div class="card compare-card"><div class="card-sub" style="margin:0;">No month has any performer data published yet.</div></div>';
     stopTopperMunimAutoplay();
     return;
   }
-  if(!topperMunimMonth || !monthOptions.includes(topperMunimMonth)){
-    topperMunimMonth = monthOptions[monthOptions.length - 1];
+  if(!topperMunimMonth || !monthOptions.some(o => o.key === topperMunimMonth)){
+    topperMunimMonth = monthOptions[monthOptions.length - 1].key;
   }
-  monthSel.innerHTML = monthOptions.map(mk => `<option value="${mk}" ${mk === topperMunimMonth ? 'selected' : ''}>${escapeHtml(SHARED_SALES_DATA[mk].label)}</option>`).join('');
+  monthSel.innerHTML = monthOptions.map(o => `<option value="${o.key}" ${o.key === topperMunimMonth ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('');
   const depts = topperMunimDeptOptions();
   if(!depts.length){
     body.innerHTML = '<div class="card compare-card"><div class="card-sub" style="margin:0;">No department with Target/Achievement data exists yet.</div></div>';
@@ -3641,16 +3737,15 @@ function renderTopperMunimView(){
     return;
   }
   const monthKey = topperMunimMonth;
+  const monthLabel = (monthOptions.find(o => o.key === monthKey) || {}).label || monthKey;
   // Flatten to one entry per (rank, dept) — but ONLY when there's both a ranked person and an
   // uploaded photo for them. Anyone ranked without a photo is skipped entirely: no blank
   // placeholder, no name shown, per how this slideshow is meant to read (photo-led, not a roster).
   topperMunimEntries = [];
   TOPPER_MUNIM_RANKS.forEach(rank => {
     depts.forEach(d => {
-      const ranks = computeMonthlyRanksForDept(monthKey, d.id);
-      let name = null;
-      ranks.forEach((r, n) => { if(r === rank) name = n; });
-      if(!name) return; // no one ranked at this position for this dept
+      const name = performerMunimNameFor(monthKey, d.id, rank);
+      if(!name) return; // no one ranked at this position for this dept (live or published)
       const url = getTopperPhoto(d.id, monthKey, rank);
       if(!url) return; // no photo uploaded — leave this performer out of the slideshow
       topperMunimEntries.push({ rank, dept: d, name, photoUrl: url });
@@ -3658,7 +3753,7 @@ function renderTopperMunimView(){
   });
   if(topperMunimSlideIndex >= topperMunimEntries.length) topperMunimSlideIndex = 0;
   if(!topperMunimEntries.length){
-    body.innerHTML = `<div class="card compare-card"><div class="card-sub" style="margin:0;">No performer photos uploaded yet for ${escapeHtml(SHARED_SALES_DATA[monthKey].label)}.${isAdmin() ? ' Add some under "⚙️ Manage Access" → "Topper photos".' : ''}</div></div>`;
+    body.innerHTML = `<div class="card compare-card"><div class="card-sub" style="margin:0;">No performer photos uploaded yet for ${escapeHtml(monthLabel)}.${isAdmin() ? ' Add some under "⚙️ Manage Access" → "Topper photos".' : ''}</div></div>`;
     stopTopperMunimAutoplay();
     return;
   }
@@ -3671,7 +3766,7 @@ function renderTopperMunimView(){
       <div class="tm-slide-head">
         <span class="tm-slide-medal">${badge.icon}</span>
         <div class="tm-slide-title">${escapeHtml(badge.label)}</div>
-        <div class="tm-slide-sub">${escapeHtml(SHARED_SALES_DATA[monthKey].label)}</div>
+        <div class="tm-slide-sub">${escapeHtml(monthLabel)}</div>
       </div>
       <div class="tm-hero">
         <div class="tm-photo-wrap">
